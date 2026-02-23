@@ -15,11 +15,20 @@ Config/
   AppInfo.plist         # Environment-specific values (API base URL, Google client ID, etc.)
 Pods/                  # Managed by CocoaPods (ignored in git)
 Podfile                # Declares GoogleSignIn dependencies
-AwesomeApp/                # Swift sources, assets, entitlements, localization files
-  Assets.xcassets/     # App icons + Google icon vector asset for the Settings screen
-  ContentView.swift    # Main UI including auth buttons and subscription sheet
-  AppViewModel+Auth.swift / AppleSignInCoordinator.swift
-                      # Glue for Google/Apple logins and account linking
+AwesomeApp/           # App source root
+  App/                # App entry + top-level UI composition
+  Core/               # Cross-cutting infrastructure (networking, persistence, config, extensions)
+  ViewModels/         # Screen state + app orchestration
+  Features/           # Feature modules grouped by domain
+    Auth/
+    Characters/
+    Duration/
+    Languages/
+    Projects/
+    Templates/
+    Voices/
+  Assets.xcassets/    # Icons and visual assets
+  *.lproj/            # Localized strings
 AwesomeApp.xcworkspace     # Preferred workspace after running `pod install`
 ```
 
@@ -51,7 +60,7 @@ All runtime knobs are Info.plist keys stored in `Config/AppInfo.plist`. During t
 | `STORAGE_UPLOAD_ORIGIN` | Origin that storage expects for signed uploads. This should mirror `NEXT_PUBLIC_STORAGE_BASE_URL` on web so the RSA-signed payloads are accepted. |
 | `GOOGLE_IOS_CLIENT_ID` | OAuth client created in Google Cloud Console for bundle id `org.video.ai.AwesomeApp`. The same value must be present in the backend `.env` (`GOOGLE_IOS_CLIENT_ID=…`) or the server will reject mobile logins with “payload audience != requiredAudience”. |
 
-> `AppConfiguration.swift` documents the defaults that ship in code. Keep them pointing at production so dev builds fail loudly when a staging value is required.
+> `AwesomeApp/Core/Configuration/AppConfiguration.swift` documents the defaults that ship in code.
 
 ### Google Sign-In Checklist
 
