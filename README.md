@@ -6,17 +6,11 @@ If you have ever seen messages like *"file too large"* when sending a video, thi
 
 ## Showcase
 
-### Step 1: Source Selection
-
-![Step 1 Source Screen](showcase/step-1-source.png)
-
-### Step 2: Target Settings
-
-![Step 2 Settings Screen](showcase/step-2-settings.png)
-
-### Step 3: Conversion Progress
-
-![Step 3 Convert Screen](showcase/step-3-convert.png)
+<p>
+  <img src="showcase/step-1-source.png" alt="Step 1 Source Screen" width="220" />
+  <img src="showcase/step-2-settings.png" alt="Step 2 Settings Screen" width="220" />
+  <img src="showcase/step-3-convert.png" alt="Step 3 Convert Screen" width="220" />
+</p>
 
 ## Why this app exists
 
