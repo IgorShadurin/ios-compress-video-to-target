@@ -16,7 +16,7 @@ echo "$DEVICE_ID"
 ## 3) Build for the currently booted iPhone 17
 
 ```sh
-xcodebuild -workspace AwesomeApp.xcworkspace -scheme AwesomeApp -destination "id=$DEVICE_ID" build
+xcodebuild -project AwesomeApp.xcodeproj -scheme AwesomeApp -destination "id=$DEVICE_ID" build
 ```
 
 ## 4) Install and launch on that simulator
@@ -25,7 +25,7 @@ xcodebuild -workspace AwesomeApp.xcworkspace -scheme AwesomeApp -destination "id
 APP_PATH=$(find "$HOME/Library/Developer/Xcode/DerivedData" -path '*/Build/Products/Debug-iphonesimulator/AwesomeApp.app' -print0 | xargs -0 ls -td | head -n 1)
 
 xcrun simctl install "$DEVICE_ID" "$APP_PATH"
-xcrun simctl launch "$DEVICE_ID" org.video.ai.AwesomeApp
+xcrun simctl launch "$DEVICE_ID" org.video.ai.CompressVideoToTargetSize
 ```
 
 ## 5) One-shot command (build + install + launch)
@@ -33,14 +33,14 @@ xcrun simctl launch "$DEVICE_ID" org.video.ai.AwesomeApp
 ```sh
 set -euo pipefail
 DEVICE_ID=$(xcrun simctl list devices booted | awk -F '[()]' '/iPhone 17 .*Booted/ {print $2; exit}')
-xcodebuild -workspace AwesomeApp.xcworkspace -scheme AwesomeApp -destination "id=$DEVICE_ID" build
+xcodebuild -project AwesomeApp.xcodeproj -scheme AwesomeApp -destination "id=$DEVICE_ID" build
 APP_PATH=$(find "$HOME/Library/Developer/Xcode/DerivedData" -path '*/Build/Products/Debug-iphonesimulator/AwesomeApp.app' -print0 | xargs -0 ls -td | head -n 1)
 xcrun simctl install "$DEVICE_ID" "$APP_PATH"
-xcrun simctl launch "$DEVICE_ID" org.video.ai.AwesomeApp
+xcrun simctl launch "$DEVICE_ID" org.video.ai.CompressVideoToTargetSize
 ```
 
 ## 6) Capture build log
 
 ```sh
-set -o pipefail && xcodebuild -workspace AwesomeApp.xcworkspace -scheme AwesomeApp -destination 'platform=iOS Simulator,name=iPhone 17' build 2>&1 | tee /tmp/xcodebuild.log
+set -o pipefail && xcodebuild -project AwesomeApp.xcodeproj -scheme AwesomeApp -destination 'platform=iOS Simulator,name=iPhone 17' build 2>&1 | tee /tmp/xcodebuild.log
 ```
