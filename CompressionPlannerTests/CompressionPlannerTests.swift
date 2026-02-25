@@ -1,3 +1,5 @@
+import AVFoundation
+import CoreMedia
 import Foundation
 import Testing
 @testable import CompressionPlanner
@@ -7,9 +9,9 @@ struct CompressionPlannerTests {
 
     @Test
     func bytesConversion() {
-        #expect(planner.bytes(for: 1, unit: .kb) == 1_024)
-        #expect(planner.bytes(for: 1.5, unit: .mb) == 1_572_864)
-        #expect(planner.bytes(for: 1, unit: .gb) == 1_073_741_824)
+        #expect(planner.bytes(for: 1, unit: .kb) == 1_000)
+        #expect(planner.bytes(for: 1.5, unit: .mb) == 1_500_000)
+        #expect(planner.bytes(for: 1, unit: .gb) == 1_000_000_000)
     }
 
     @Test
@@ -288,6 +290,102 @@ struct CompressionPlannerTests {
         }
     }
 
+    @Test
+    func gallerySampleFromIssueBuildsFeasiblePlanForHalfSizeWithoutManualResize() async throws {
+        let testFileURL = try #require(
+            Bundle.module.url(
+                forResource: "gallery_sample_v24044",
+                withExtension: "mp4",
+                subdirectory: "TestData"
+            )
+        )
+
+        #expect(FileManager.default.fileExists(atPath: testFileURL.path))
+        let source = try await makeSourceProfile(from: testFileURL)
+
+        let targetBytes = max(1, source.fileSizeBytes / 2)
+        let settings = CompressionSettings(
+            targetValue: Double(targetBytes) / CompressionUnit.mb.multiplier,
+            targetUnit: .mb,
+            allowResizeUpTo10x: false,
+            removeHDR: false,
+            outputFormatIdentifier: nil
+        )
+
+        let plan = try planner.makePlan(
+            source: source,
+            settings: settings,
+            supportedOutputFormats: [.mp4, .mov, .m4v]
+        )
+
+        #expect(plan.estimatedOutputBytes <= plan.targetBytes)
+        #expect(plan.resizeScale < 1.0)
+        #expect(plan.outputContainer == .mp4)
+    }
+
+    @Test
+    func writerBaseDimensionsSwapForQuarterTurnTransform() {
+        let portraitRotation = CGAffineTransform(a: 0, b: 1, c: -1, d: 0, tx: 1080, ty: 0)
+        #expect(VideoGeometry.usesQuarterTurnTransform(portraitRotation))
+
+        let corrected = VideoGeometry.writerBaseDimensions(
+            displayWidth: 1080,
+            displayHeight: 1920,
+            preferredTransform: portraitRotation
+        )
+        #expect(corrected.width == 1920)
+        #expect(corrected.height == 1080)
+
+        let identity = CGAffineTransform.identity
+        #expect(!VideoGeometry.usesQuarterTurnTransform(identity))
+        let unchanged = VideoGeometry.writerBaseDimensions(
+            displayWidth: 1080,
+            displayHeight: 1920,
+            preferredTransform: identity
+        )
+        #expect(unchanged.width == 1080)
+        #expect(unchanged.height == 1920)
+    }
+
+    @Test
+    func rotatedPortraitSampleKeepsPortraitDisplayWhenUsingWriterBaseDimensions() async throws {
+        let testFileURL = try #require(
+            Bundle.module.url(
+                forResource: "IMG_5988",
+                withExtension: "MOV",
+                subdirectory: "TestData"
+            )
+        )
+
+        let asset = AVURLAsset(url: testFileURL)
+        let track = try #require(try await asset.loadTracks(withMediaType: .video).first)
+        let naturalSize = try await track.load(.naturalSize)
+        let preferredTransform = try await track.load(.preferredTransform)
+
+        let sourceDisplayRect = CGRect(origin: .zero, size: naturalSize).applying(preferredTransform)
+        let sourceDisplayWidth = max(1, Int(abs(sourceDisplayRect.width).rounded()))
+        let sourceDisplayHeight = max(1, Int(abs(sourceDisplayRect.height).rounded()))
+        #expect(sourceDisplayHeight > sourceDisplayWidth)
+        #expect(VideoGeometry.usesQuarterTurnTransform(preferredTransform))
+
+        let wrongWriterRect = CGRect(
+            origin: .zero,
+            size: CGSize(width: sourceDisplayWidth, height: sourceDisplayHeight)
+        ).applying(preferredTransform)
+        #expect(abs(wrongWriterRect.width) > abs(wrongWriterRect.height))
+
+        let correctedWriterBase = VideoGeometry.writerBaseDimensions(
+            displayWidth: sourceDisplayWidth,
+            displayHeight: sourceDisplayHeight,
+            preferredTransform: preferredTransform
+        )
+        let correctedWriterRect = CGRect(
+            origin: .zero,
+            size: CGSize(width: correctedWriterBase.width, height: correctedWriterBase.height)
+        ).applying(preferredTransform)
+        #expect(abs(correctedWriterRect.height) > abs(correctedWriterRect.width))
+    }
+
     private func makeSource(
         duration: Double = 20,
         bytes: Int64 = 80 * 1_024 * 1_024,
@@ -328,5 +426,51 @@ struct CompressionPlannerTests {
         default:
             return CompressionContainer(identifier: token)
         }
+    }
+
+    private func makeSourceProfile(from fileURL: URL) async throws -> SourceVideoProfile {
+        let values = try fileURL.resourceValues(forKeys: [.fileSizeKey, .fileAllocatedSizeKey])
+        let sizeBytes = Int64(values.fileSize ?? values.fileAllocatedSize ?? 0)
+
+        let asset = AVURLAsset(url: fileURL)
+        let duration = try await asset.load(.duration)
+        let durationSeconds = max(0.001, CMTimeGetSeconds(duration))
+
+        let videoTracks = try await asset.loadTracks(withMediaType: .video)
+        let videoTrack = try #require(videoTracks.first)
+
+        let naturalSize = try await videoTrack.load(.naturalSize)
+        let transform = try await videoTrack.load(.preferredTransform)
+        let transformed = naturalSize.applying(transform)
+        let width = max(64, Int(abs(transformed.width).rounded()))
+        let height = max(64, Int(abs(transformed.height).rounded()))
+        let frameRate = max(1, Double(try await videoTrack.load(.nominalFrameRate)))
+        let videoBitrate = max(150_000, Int(try await videoTrack.load(.estimatedDataRate)))
+
+        let formatDescriptions = try await videoTrack.load(.formatDescriptions)
+        let firstFormatDescription = formatDescriptions.first
+        let codecSubtype = firstFormatDescription.map { CMFormatDescriptionGetMediaSubType($0 as CMFormatDescription) } ?? 0
+        let codec: VideoCodec = codecSubtype == kCMVideoCodecType_HEVC ? .hevc : .h264
+
+        let audioTracks = try await asset.loadTracks(withMediaType: .audio)
+        let audioBitrate: Int
+        if let audioTrack = audioTracks.first {
+            audioBitrate = max(32_000, Int(try await audioTrack.load(.estimatedDataRate)))
+        } else {
+            audioBitrate = 0
+        }
+
+        return SourceVideoProfile(
+            durationSeconds: durationSeconds,
+            fileSizeBytes: sizeBytes,
+            width: width,
+            height: height,
+            frameRate: frameRate,
+            hasHDR: false,
+            container: .mp4,
+            codec: codec,
+            sourceVideoBitrate: videoBitrate,
+            sourceAudioBitrate: audioBitrate
+        )
     }
 }

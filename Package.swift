@@ -12,12 +12,15 @@ let package = Package(
     targets: [
         .target(
             name: "CompressionPlanner",
-            path: "AwesomeApp/CompressionPlanner"
+            path: "CompressVideoToTargetSize/CompressionPlanner"
         ),
         .testTarget(
             name: "CompressionPlannerTests",
             dependencies: ["CompressionPlanner"],
-            path: "CompressionPlannerTests"
+            path: "CompressionPlannerTests",
+            resources: [
+                .copy("TestData")
+            ]
         )
     ]
 )

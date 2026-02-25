@@ -1,46 +1,62 @@
-# Build and Launch Commands (iOS Simulator)
+# Build and Launch Commands (Dedicated iOS Simulator)
 
-## 1) Find the currently booted simulator
+This project uses a dedicated simulator binding file (outside git):
+
+`/Users/test/XCodeProjects/CompressTarget_data/CompressTarget.simulator.env`
+
+## 1) Load dedicated simulator info
 
 ```sh
-xcrun simctl list devices booted
+SIM_ENV=/Users/test/XCodeProjects/CompressTarget_data/CompressTarget.simulator.env
+source "$SIM_ENV"
+echo "$SIM_DEVICE_NAME $SIM_DEVICE_UDID $SIM_RUNTIME"
 ```
 
-## 2) Get the booted iPhone 17 device ID
+## 2) Boot dedicated simulator (if needed)
 
 ```sh
-DEVICE_ID=$(xcrun simctl list devices booted | awk -F '[()]' '/iPhone 17 .*Booted/ {print $2; exit}')
-echo "$DEVICE_ID"
+SIM_ENV=/Users/test/XCodeProjects/CompressTarget_data/CompressTarget.simulator.env
+source "$SIM_ENV"
+xcrun simctl boot "$SIM_DEVICE_UDID" || true
+open -a Simulator
 ```
 
-## 3) Build for the currently booted iPhone 17
+## 3) Build for the dedicated simulator
 
 ```sh
-xcodebuild -project AwesomeApp.xcodeproj -scheme AwesomeApp -destination "id=$DEVICE_ID" build
+SIM_ENV=/Users/test/XCodeProjects/CompressTarget_data/CompressTarget.simulator.env
+source "$SIM_ENV"
+xcodebuild -project CompressVideoToTargetSize.xcodeproj -scheme CompressVideoToTargetSize -destination "id=$SIM_DEVICE_UDID" build
 ```
 
-## 4) Install and launch on that simulator
+## 4) Install and launch on dedicated simulator
 
 ```sh
-APP_PATH=$(find "$HOME/Library/Developer/Xcode/DerivedData" -path '*/Build/Products/Debug-iphonesimulator/AwesomeApp.app' -print0 | xargs -0 ls -td | head -n 1)
+SIM_ENV=/Users/test/XCodeProjects/CompressTarget_data/CompressTarget.simulator.env
+source "$SIM_ENV"
+APP_PATH=$(find "$HOME/Library/Developer/Xcode/DerivedData" -path '*/Build/Products/Debug-iphonesimulator/CompressVideoToTargetSize.app' -print0 | xargs -0 ls -td | head -n 1)
 
-xcrun simctl install "$DEVICE_ID" "$APP_PATH"
-xcrun simctl launch "$DEVICE_ID" org.video.ai.CompressVideoToTargetSize
+xcrun simctl install "$SIM_DEVICE_UDID" "$APP_PATH"
+xcrun simctl launch "$SIM_DEVICE_UDID" org.icorpvideo.CompressVideoToTargetSize
 ```
 
 ## 5) One-shot command (build + install + launch)
 
 ```sh
 set -euo pipefail
-DEVICE_ID=$(xcrun simctl list devices booted | awk -F '[()]' '/iPhone 17 .*Booted/ {print $2; exit}')
-xcodebuild -project AwesomeApp.xcodeproj -scheme AwesomeApp -destination "id=$DEVICE_ID" build
-APP_PATH=$(find "$HOME/Library/Developer/Xcode/DerivedData" -path '*/Build/Products/Debug-iphonesimulator/AwesomeApp.app' -print0 | xargs -0 ls -td | head -n 1)
-xcrun simctl install "$DEVICE_ID" "$APP_PATH"
-xcrun simctl launch "$DEVICE_ID" org.video.ai.CompressVideoToTargetSize
+SIM_ENV=/Users/test/XCodeProjects/CompressTarget_data/CompressTarget.simulator.env
+source "$SIM_ENV"
+xcrun simctl boot "$SIM_DEVICE_UDID" >/dev/null 2>&1 || true
+xcodebuild -project CompressVideoToTargetSize.xcodeproj -scheme CompressVideoToTargetSize -destination "id=$SIM_DEVICE_UDID" build
+APP_PATH=$(find "$HOME/Library/Developer/Xcode/DerivedData" -path '*/Build/Products/Debug-iphonesimulator/CompressVideoToTargetSize.app' -print0 | xargs -0 ls -td | head -n 1)
+xcrun simctl install "$SIM_DEVICE_UDID" "$APP_PATH"
+xcrun simctl launch "$SIM_DEVICE_UDID" org.icorpvideo.CompressVideoToTargetSize
 ```
 
 ## 6) Capture build log
 
 ```sh
-set -o pipefail && xcodebuild -project AwesomeApp.xcodeproj -scheme AwesomeApp -destination 'platform=iOS Simulator,name=iPhone 17' build 2>&1 | tee /tmp/xcodebuild.log
+SIM_ENV=/Users/test/XCodeProjects/CompressTarget_data/CompressTarget.simulator.env
+source "$SIM_ENV"
+set -o pipefail && xcodebuild -project CompressVideoToTargetSize.xcodeproj -scheme CompressVideoToTargetSize -destination "id=$SIM_DEVICE_UDID" build 2>&1 | tee /tmp/xcodebuild.log
 ```
