@@ -1,0 +1,595 @@
+{
+  "appId": "6759647731",
+  "group": {
+    "referenceName": "Compress Target Plans",
+    "localizations": [
+      {
+        "locale": "ar-SA",
+        "name": "فتح بلا حدود"
+      },
+      {
+        "locale": "bg-BG",
+        "name": "Отключи без лимит"
+      },
+      {
+        "locale": "ca",
+        "name": "Desbloqueja il.limitat"
+      },
+      {
+        "locale": "cs",
+        "name": "Odemkni bez limitu"
+      },
+      {
+        "locale": "da",
+        "name": "Las op ubegranset"
+      },
+      {
+        "locale": "de-DE",
+        "name": "Unbegrenzt freischalt"
+      },
+      {
+        "locale": "el",
+        "name": "Ξεκλείδωσε απεριόριστο"
+      },
+      {
+        "locale": "en-AU",
+        "name": "Unlock Unlimited Conversions"
+      },
+      {
+        "locale": "en-CA",
+        "name": "Unlock Unlimited Conversions"
+      },
+      {
+        "locale": "en-GB",
+        "name": "Unlock Unlimited Conversions"
+      },
+      {
+        "locale": "en-US",
+        "name": "Unlock Unlimited Conversions"
+      },
+      {
+        "locale": "es-ES",
+        "name": "Desbloquea sin limite"
+      },
+      {
+        "locale": "es-MX",
+        "name": "Desbloquea sin limite"
+      },
+      {
+        "locale": "fi",
+        "name": "Avaa rajaton"
+      },
+      {
+        "locale": "fr-CA",
+        "name": "Debloque illimite"
+      },
+      {
+        "locale": "fr-FR",
+        "name": "Debloque illimite"
+      },
+      {
+        "locale": "he",
+        "name": "פתח ללא הגבלה"
+      },
+      {
+        "locale": "hi",
+        "name": "अनलिमिटेड खोलें"
+      },
+      {
+        "locale": "hr",
+        "name": "Otkljucaj bez limita"
+      },
+      {
+        "locale": "hu",
+        "name": "Korlatlanra valt"
+      },
+      {
+        "locale": "id",
+        "name": "Buka tanpa batas"
+      },
+      {
+        "locale": "it",
+        "name": "Sblocca illimitato"
+      },
+      {
+        "locale": "ja",
+        "name": "無制限を解除"
+      },
+      {
+        "locale": "ko",
+        "name": "무제한 잠금해제"
+      },
+      {
+        "locale": "ms",
+        "name": "Buka tanpa had"
+      },
+      {
+        "locale": "nl-NL",
+        "name": "Ontgrendel onbeperkt"
+      },
+      {
+        "locale": "no",
+        "name": "Las opp ubegrenset"
+      },
+      {
+        "locale": "pl",
+        "name": "Odblokuj bez limitu"
+      },
+      {
+        "locale": "pt-BR",
+        "name": "Desbloqueie ilimitado"
+      },
+      {
+        "locale": "pt-PT",
+        "name": "Desbloqueie ilimitado"
+      },
+      {
+        "locale": "ro",
+        "name": "Deblocheaza nelimitat"
+      },
+      {
+        "locale": "ru",
+        "name": "Открой безлимит"
+      },
+      {
+        "locale": "sk",
+        "name": "Odomkni bez limitu"
+      },
+      {
+        "locale": "sv",
+        "name": "Las upp obegransat"
+      },
+      {
+        "locale": "th",
+        "name": "ปลดล็อกไม่จำกัด"
+      },
+      {
+        "locale": "tr",
+        "name": "Sinirsizi ac"
+      },
+      {
+        "locale": "uk",
+        "name": "Відкрий безліміт"
+      },
+      {
+        "locale": "vi",
+        "name": "Mo khong gioi han"
+      },
+      {
+        "locale": "zh-Hans",
+        "name": "解锁无限转换"
+      },
+      {
+        "locale": "zh-Hant",
+        "name": "解鎖無限轉換"
+      }
+    ]
+  },
+  "replaceExistingImages": true,
+  "subscriptions": [
+    {
+      "name": "Weekly",
+      "productId": "org.icorpvideo.compress.weekly",
+      "subscriptionPeriod": "ONE_WEEK",
+      "groupLevel": 1,
+      "price": "0.99",
+      "priceTerritory": "USA",
+      "applyEqualizedPrices": true,
+      "localizations": [
+        {
+          "locale": "ar-SA",
+          "name": "أسبوعي",
+          "description": "بلا حدود، أسبوعي"
+        },
+        {
+          "locale": "bg-BG",
+          "name": "Ежеседмично",
+          "description": "Без лимит, седмично"
+        },
+        {
+          "locale": "ca",
+          "name": "Setmanalment",
+          "description": "Il.limitat, setmanal"
+        },
+        {
+          "locale": "cs",
+          "name": "Týdenní",
+          "description": "Bez limitu, tydne"
+        },
+        {
+          "locale": "da",
+          "name": "Ugentligt",
+          "description": "Ubegranset, ugentlig"
+        },
+        {
+          "locale": "de-DE",
+          "name": "Wöchentlich",
+          "description": "Unbegrenzt, wochentl."
+        },
+        {
+          "locale": "el",
+          "name": "Εβδομαδιαία",
+          "description": "Απεριόριστα, εβδομ."
+        },
+        {
+          "locale": "en-AU",
+          "name": "Weekly",
+          "description": "Unlimited conversions, billed weekly"
+        },
+        {
+          "locale": "en-CA",
+          "name": "Weekly",
+          "description": "Unlimited conversions, billed weekly"
+        },
+        {
+          "locale": "en-GB",
+          "name": "Weekly",
+          "description": "Unlimited conversions, billed weekly"
+        },
+        {
+          "locale": "en-US",
+          "name": "Weekly",
+          "description": "Unlimited conversions, billed weekly"
+        },
+        {
+          "locale": "es-ES",
+          "name": "Semanal",
+          "description": "Sin limite, semanal"
+        },
+        {
+          "locale": "es-MX",
+          "name": "Semanal",
+          "description": "Sin limite, semanal"
+        },
+        {
+          "locale": "fi",
+          "name": "viikoittain",
+          "description": "Rajaton, viikoittain"
+        },
+        {
+          "locale": "fr-CA",
+          "name": "Hebdomadaire",
+          "description": "Illimite, semaine"
+        },
+        {
+          "locale": "fr-FR",
+          "name": "Hebdomadaire",
+          "description": "Illimite, semaine"
+        },
+        {
+          "locale": "he",
+          "name": "שבועי",
+          "description": "ללא הגבלה, שבועי"
+        },
+        {
+          "locale": "hi",
+          "name": "साप्ताहिक",
+          "description": "अनलिमिटेड, साप्ताहिक"
+        },
+        {
+          "locale": "hr",
+          "name": "Tjedni",
+          "description": "Bez limita, tjedno"
+        },
+        {
+          "locale": "hu",
+          "name": "Hetente",
+          "description": "Korlatlan, heti"
+        },
+        {
+          "locale": "id",
+          "name": "Mingguan",
+          "description": "Tanpa batas, mingguan"
+        },
+        {
+          "locale": "it",
+          "name": "Settimanale",
+          "description": "Illimitato, settiman."
+        },
+        {
+          "locale": "ja",
+          "name": "毎週",
+          "description": "無制限、週課金"
+        },
+        {
+          "locale": "ko",
+          "name": "주간",
+          "description": "무제한, 주간결제"
+        },
+        {
+          "locale": "ms",
+          "name": "Mingguan",
+          "description": "Tanpa had, mingguan"
+        },
+        {
+          "locale": "nl-NL",
+          "name": "Wekelijks",
+          "description": "Onbeperkt, wekelijks"
+        },
+        {
+          "locale": "no",
+          "name": "Ukentlig",
+          "description": "Ubegrenset, ukentlig"
+        },
+        {
+          "locale": "pl",
+          "name": "Co tydzień",
+          "description": "Bez limitu, tygodniowo"
+        },
+        {
+          "locale": "pt-BR",
+          "name": "Semanalmente",
+          "description": "Ilimitado, semanal"
+        },
+        {
+          "locale": "pt-PT",
+          "name": "Semanalmente",
+          "description": "Ilimitado, semanal"
+        },
+        {
+          "locale": "ro",
+          "name": "Săptămânal",
+          "description": "Nelimitat, saptamanal"
+        },
+        {
+          "locale": "ru",
+          "name": "Еженедельно",
+          "description": "Безлимит, неделя"
+        },
+        {
+          "locale": "sk",
+          "name": "Týždenne",
+          "description": "Bez limitu, tyzdenne"
+        },
+        {
+          "locale": "sv",
+          "name": "Varje vecka",
+          "description": "Obegransat, veckovis"
+        },
+        {
+          "locale": "th",
+          "name": "รายสัปดาห์",
+          "description": "ไม่จำกัด, รายสัปดาห์"
+        },
+        {
+          "locale": "tr",
+          "name": "Haftalık",
+          "description": "Sinirsiz, haftalik"
+        },
+        {
+          "locale": "uk",
+          "name": "Щотижня",
+          "description": "Безліміт, тиждень"
+        },
+        {
+          "locale": "vi",
+          "name": "hàng tuần",
+          "description": "Khong gioi han, tuan"
+        },
+        {
+          "locale": "zh-Hans",
+          "name": "每周",
+          "description": "无限转换，周付"
+        },
+        {
+          "locale": "zh-Hant",
+          "name": "每週",
+          "description": "無限轉換，週付"
+        }
+      ],
+      "imagePath": "/Users/test/XCodeProjects/CompressTarget_data/weekly-icon.png"
+    },
+    {
+      "name": "Monthly",
+      "productId": "org.icorpvideo.compress.monthly",
+      "subscriptionPeriod": "ONE_MONTH",
+      "groupLevel": 2,
+      "price": "2.99",
+      "priceTerritory": "USA",
+      "applyEqualizedPrices": true,
+      "localizations": [
+        {
+          "locale": "ar-SA",
+          "name": "شهريا",
+          "description": "بلا حدود، شهري"
+        },
+        {
+          "locale": "bg-BG",
+          "name": "Месечно",
+          "description": "Без лимит, месечно"
+        },
+        {
+          "locale": "ca",
+          "name": "Mensualment",
+          "description": "Il.limitat, mensual"
+        },
+        {
+          "locale": "cs",
+          "name": "Měsíční",
+          "description": "Bez limitu, mesicne"
+        },
+        {
+          "locale": "da",
+          "name": "Månedligt",
+          "description": "Ubegranset, manedlig"
+        },
+        {
+          "locale": "de-DE",
+          "name": "Monatlich",
+          "description": "Unbegrenzt, monatl."
+        },
+        {
+          "locale": "el",
+          "name": "Μηνιαία",
+          "description": "Απεριόριστα, μήνα"
+        },
+        {
+          "locale": "en-AU",
+          "name": "Monthly",
+          "description": "Unlimited conversions, billed monthly"
+        },
+        {
+          "locale": "en-CA",
+          "name": "Monthly",
+          "description": "Unlimited conversions, billed monthly"
+        },
+        {
+          "locale": "en-GB",
+          "name": "Monthly",
+          "description": "Unlimited conversions, billed monthly"
+        },
+        {
+          "locale": "en-US",
+          "name": "Monthly",
+          "description": "Unlimited conversions, billed monthly"
+        },
+        {
+          "locale": "es-ES",
+          "name": "Mensual",
+          "description": "Sin limite, mensual"
+        },
+        {
+          "locale": "es-MX",
+          "name": "Mensual",
+          "description": "Sin limite, mensual"
+        },
+        {
+          "locale": "fi",
+          "name": "Kuukausittain",
+          "description": "Rajaton, kuukausi"
+        },
+        {
+          "locale": "fr-CA",
+          "name": "Mensuel",
+          "description": "Illimite, mois"
+        },
+        {
+          "locale": "fr-FR",
+          "name": "Mensuel",
+          "description": "Illimite, mois"
+        },
+        {
+          "locale": "he",
+          "name": "חודשי",
+          "description": "ללא הגבלה, חודשי"
+        },
+        {
+          "locale": "hi",
+          "name": "मासिक",
+          "description": "अनलिमिटेड, मासिक"
+        },
+        {
+          "locale": "hr",
+          "name": "Mjesečno",
+          "description": "Bez limita, mjesecno"
+        },
+        {
+          "locale": "hu",
+          "name": "Havonta",
+          "description": "Korlatlan, havi"
+        },
+        {
+          "locale": "id",
+          "name": "Bulanan",
+          "description": "Tanpa batas, bulanan"
+        },
+        {
+          "locale": "it",
+          "name": "Mensile",
+          "description": "Illimitato, mensile"
+        },
+        {
+          "locale": "ja",
+          "name": "毎月",
+          "description": "無制限、月課金"
+        },
+        {
+          "locale": "ko",
+          "name": "월간",
+          "description": "무제한, 월간결제"
+        },
+        {
+          "locale": "ms",
+          "name": "Bulanan",
+          "description": "Tanpa had, bulanan"
+        },
+        {
+          "locale": "nl-NL",
+          "name": "Maandelijks",
+          "description": "Onbeperkt, maandelijks"
+        },
+        {
+          "locale": "no",
+          "name": "Månedlig",
+          "description": "Ubegrenset, manedlig"
+        },
+        {
+          "locale": "pl",
+          "name": "Miesięcznie",
+          "description": "Bez limitu, miesiecznie"
+        },
+        {
+          "locale": "pt-BR",
+          "name": "Mensalmente",
+          "description": "Ilimitado, mensal"
+        },
+        {
+          "locale": "pt-PT",
+          "name": "Mensalmente",
+          "description": "Ilimitado, mensal"
+        },
+        {
+          "locale": "ro",
+          "name": "Lunar",
+          "description": "Nelimitat, lunar"
+        },
+        {
+          "locale": "ru",
+          "name": "Ежемесячно",
+          "description": "Безлимит, месяц"
+        },
+        {
+          "locale": "sk",
+          "name": "Mesačne",
+          "description": "Bez limitu, mesacne"
+        },
+        {
+          "locale": "sv",
+          "name": "Månadsvis",
+          "description": "Obegransat, manadsvis"
+        },
+        {
+          "locale": "th",
+          "name": "รายเดือน",
+          "description": "ไม่จำกัด, รายเดือน"
+        },
+        {
+          "locale": "tr",
+          "name": "Aylık",
+          "description": "Sinirsiz, aylik"
+        },
+        {
+          "locale": "uk",
+          "name": "Щомісяця",
+          "description": "Безліміт, місяць"
+        },
+        {
+          "locale": "vi",
+          "name": "hàng tháng",
+          "description": "Khong gioi han, thang"
+        },
+        {
+          "locale": "zh-Hans",
+          "name": "每月",
+          "description": "无限转换，月付"
+        },
+        {
+          "locale": "zh-Hant",
+          "name": "每月",
+          "description": "無限轉換，月付"
+        }
+      ],
+      "imagePath": "/Users/test/XCodeProjects/CompressTarget_data/monthly-icon.png"
+    }
+  ]
+}

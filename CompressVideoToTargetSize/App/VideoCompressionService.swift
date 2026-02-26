@@ -55,6 +55,11 @@ final class VideoCompressionService {
         let outputURL: URL
     }
 
+    private struct ActiveExport {
+        let session: AVAssetExportSession
+        let outputURL: URL
+    }
+
     private final class ErrorBox {
         private let lock = NSLock()
         private var storedError: Error?
@@ -74,8 +79,33 @@ final class VideoCompressionService {
         }
     }
 
+    private final class PumpCompletionTracker {
+        private let lock = NSLock()
+        private var finishedKeys = Set<String>()
+
+        func finish(_ key: String, group: DispatchGroup) {
+            lock.lock()
+            let shouldLeave = !finishedKeys.contains(key)
+            if shouldLeave {
+                finishedKeys.insert(key)
+            }
+            lock.unlock()
+
+            if shouldLeave {
+                group.leave()
+            }
+        }
+
+        func finishPending(keys: [String], group: DispatchGroup) {
+            for key in keys {
+                finish(key, group: group)
+            }
+        }
+    }
+
     private let activeCompressionLock = NSLock()
     private var activeCompression: ActiveCompression?
+    private var activeExport: ActiveExport?
 
     func exportLowQualityFallback(sourceURL: URL) async throws -> URL {
         let sourceAsset = AVURLAsset(url: sourceURL)
@@ -102,6 +132,8 @@ final class VideoCompressionService {
         exportSession.outputURL = outputURL
         exportSession.outputFileType = outputFileType
         exportSession.shouldOptimizeForNetworkUse = true
+        registerActiveExport(session: exportSession, outputURL: outputURL)
+        defer { clearActiveExport(outputURL: outputURL) }
 
         try await withCheckedThrowingContinuation { continuation in
             exportSession.exportAsynchronously {
@@ -134,17 +166,24 @@ final class VideoCompressionService {
     }
 
     func cancelCurrentCompression() {
-        let operation: ActiveCompression? = {
+        let state: (ActiveCompression?, ActiveExport?) = {
             activeCompressionLock.lock()
             defer { activeCompressionLock.unlock() }
-            return activeCompression
+            return (activeCompression, activeExport)
         }()
 
-        guard let operation else { return }
+        if let operation = state.0 {
+            operation.reader.cancelReading()
+            operation.writer.cancelWriting()
+            try? FileManager.default.removeItem(at: operation.outputURL)
+        }
 
-        operation.reader.cancelReading()
-        operation.writer.cancelWriting()
-        try? FileManager.default.removeItem(at: operation.outputURL)
+        if let export = state.1 {
+            export.session.cancelExport()
+            try? FileManager.default.removeItem(at: export.outputURL)
+        }
+
+        clearTemporaryCompressedArtifacts()
     }
 
     func compress(
@@ -306,6 +345,8 @@ final class VideoCompressionService {
             let errorBox = ErrorBox()
             let group = DispatchGroup()
             let durationSeconds = max(metadata.durationSeconds, 0.001)
+            let completionTracker = PumpCompletionTracker()
+            var streamKeys = ["video"]
 
             group.enter()
             pumpSamples(
@@ -313,40 +354,69 @@ final class VideoCompressionService {
                 input: videoInput,
                 mediaType: "video",
                 queueLabel: "video-compress-queue",
-                group: group,
                 reader: reader,
                 writer: writer,
                 errorBox: errorBox,
                 durationSeconds: durationSeconds,
-                progressHandler: progressHandler
+                progressHandler: progressHandler,
+                onFinish: {
+                    completionTracker.finish("video", group: group)
+                }
             )
 
             if let audioOutput, let audioInput {
+                streamKeys.append("audio")
                 group.enter()
                 pumpSamples(
                     output: audioOutput,
                     input: audioInput,
                     mediaType: "audio",
                     queueLabel: "audio-compress-queue",
-                    group: group,
                     reader: reader,
                     writer: writer,
                     errorBox: errorBox,
                     durationSeconds: nil,
-                    progressHandler: nil
+                    progressHandler: nil,
+                    onFinish: {
+                        completionTracker.finish("audio", group: group)
+                    }
                 )
             }
 
+            let watchdogQueue = DispatchQueue(label: "compression-watchdog-queue", qos: .userInitiated)
+            let watchdog = DispatchSource.makeTimerSource(queue: watchdogQueue)
+            watchdog.schedule(deadline: .now() + .milliseconds(200), repeating: .milliseconds(250))
+            watchdog.setEventHandler {
+                if reader.status == .cancelled || writer.status == .cancelled {
+                    errorBox.setIfEmpty(VideoCompressionServiceError.cancelled)
+                    completionTracker.finishPending(keys: streamKeys, group: group)
+                    watchdog.cancel()
+                    return
+                }
+
+                if reader.status == .failed || writer.status == .failed {
+                    errorBox.setIfEmpty(reader.error ?? writer.error ?? VideoCompressionServiceError.appendFailed("writer"))
+                    completionTracker.finishPending(keys: streamKeys, group: group)
+                    watchdog.cancel()
+                }
+            }
+            watchdog.resume()
+
             group.notify(queue: DispatchQueue.global(qos: .userInitiated)) {
+                watchdog.cancel()
                 if let processError = errorBox.error {
                     reader.cancelReading()
                     writer.cancelWriting()
+                    if case VideoCompressionServiceError.cancelled = processError {
+                        self.clearTemporaryCompressedArtifacts()
+                    }
                     continuation.resume(throwing: processError)
                     return
                 }
 
                 if reader.status == .cancelled || writer.status == .cancelled {
                     try? FileManager.default.removeItem(at: outputURL)
+                    self.clearTemporaryCompressedArtifacts()
                     continuation.resume(throwing: VideoCompressionServiceError.cancelled)
                     return
                 }
@@ -380,12 +450,12 @@ final class VideoCompressionService {
         input: AVAssetWriterInput,
         mediaType: String,
         queueLabel: String,
-        group: DispatchGroup,
         reader: AVAssetReader,
         writer: AVAssetWriter,
         errorBox: ErrorBox,
         durationSeconds: Double?,
-        progressHandler: ((Double) -> Void)?
+        progressHandler: ((Double) -> Void)?,
+        onFinish: @escaping () -> Void
     ) {
         let queue = DispatchQueue(label: queueLabel, qos: .userInitiated)
         var didFinish = false
@@ -402,7 +472,7 @@ final class VideoCompressionService {
                     errorBox.setIfEmpty(VideoCompressionServiceError.cancelled)
                     input.markAsFinished()
                     didFinish = true
-                    group.leave()
+                    onFinish()
                     return
                 }
 
@@ -411,7 +481,7 @@ final class VideoCompressionService {
                     errorBox.setIfEmpty(baseError)
                     input.markAsFinished()
                     didFinish = true
-                    group.leave()
+                    onFinish()
                     return
                 }
 
@@ -434,7 +504,7 @@ final class VideoCompressionService {
                         errorBox.setIfEmpty(baseError)
                         input.markAsFinished()
                         didFinish = true
-                        group.leave()
+                        onFinish()
                         return
                     }
                     lastPTS = pts
@@ -458,7 +528,7 @@ final class VideoCompressionService {
                         progressHandler(1)
                     }
                     didFinish = true
-                    group.leave()
+                    onFinish()
                     return
                 }
             }
@@ -507,5 +577,35 @@ final class VideoCompressionService {
             return
         }
         self.activeCompression = nil
+    }
+
+    private func registerActiveExport(session: AVAssetExportSession, outputURL: URL) {
+        activeCompressionLock.lock()
+        activeExport = ActiveExport(session: session, outputURL: outputURL)
+        activeCompressionLock.unlock()
+    }
+
+    private func clearActiveExport(outputURL: URL) {
+        activeCompressionLock.lock()
+        defer { activeCompressionLock.unlock() }
+        guard let activeExport, activeExport.outputURL == outputURL else {
+            return
+        }
+        self.activeExport = nil
+    }
+
+    private func clearTemporaryCompressedArtifacts() {
+        let tempDirectory = FileManager.default.temporaryDirectory
+        guard let urls = try? FileManager.default.contentsOfDirectory(
+            at: tempDirectory,
+            includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles]
+        ) else {
+            return
+        }
+
+        for url in urls where url.lastPathComponent.hasPrefix("compressed-") {
+            try? FileManager.default.removeItem(at: url)
+        }
     }
 }

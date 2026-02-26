@@ -10,12 +10,14 @@ struct ContentView: View {
     @State private var isSaveDestinationDialogPresented = false
     @State private var isFilesExportPickerPresented = false
     @State private var isStartOverDialogPresented = false
+    @State private var isCancelConversionDialogPresented = false
     @State private var pendingStepNavigation: VideoCompressionViewModel.WorkflowStep?
     @State private var selectedPaywallPlanID: String?
 #if DEBUG
     @State private var isDebugResetDialogPresented = false
 #endif
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.openURL) private var openURL
 
     var body: some View {
         NavigationStack {
@@ -94,6 +96,18 @@ struct ContentView: View {
             }
         } message: {
             Text(L10n.tr("Current conversion result will be cleared."))
+        }
+        .confirmationDialog(
+            L10n.tr("Leave current step?"),
+            isPresented: $isCancelConversionDialogPresented,
+            titleVisibility: .visible
+        ) {
+            Button(L10n.tr("Cancel conversion"), role: .destructive) {
+                viewModel.cancelConversion()
+            }
+            Button(L10n.tr("Cancel"), role: .cancel) {}
+        } message: {
+            Text(L10n.tr("You will return to conversion."))
         }
         .sheet(
             isPresented: Binding(
@@ -302,7 +316,9 @@ struct ContentView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                if !viewModel.hasPremiumAccess {
+                if viewModel.hasPremiumAccess {
+                    manageSubscriptionsInlineButton
+                } else {
                     quotaStatusCard
                 }
 
@@ -574,7 +590,7 @@ struct ContentView: View {
 
                     if viewModel.isConverting {
                         Button(role: .destructive) {
-                            viewModel.cancelConversion()
+                            isCancelConversionDialogPresented = true
                         } label: {
                             HStack(spacing: 10) {
                                 if viewModel.isCancellingConversion {
@@ -893,11 +909,6 @@ struct ContentView: View {
                                 .font(.title2.weight(.bold))
                                 .multilineTextAlignment(.center)
                                 .foregroundStyle(paywallPrimaryTextColor)
-
-                            Text(L10n.tr("Free plan includes one conversion per day."))
-                                .font(.subheadline)
-                                .multilineTextAlignment(.center)
-                                .foregroundStyle(paywallSecondaryTextColor)
                         }
                         .padding(.top, 8)
 
@@ -993,17 +1004,6 @@ struct ContentView: View {
                         .buttonStyle(.plain)
                         .disabled(viewModel.isPurchasingPlan)
 
-                        Button {
-                            viewModel.dismissPaywall()
-                        } label: {
-                            Text(L10n.tr("Continue with Free Plan"))
-                                .font(.footnote.weight(.semibold))
-                                .foregroundStyle(paywallSecondaryTextColor)
-                                .underline()
-                        }
-                        .buttonStyle(.plain)
-                        .padding(.top, 2)
-
                         if let errorMessage = viewModel.errorMessage {
                             Text(errorMessage)
                                 .font(.footnote)
@@ -1016,10 +1016,24 @@ struct ContentView: View {
                                 .font(.caption2)
                                 .multilineTextAlignment(.center)
                                 .foregroundStyle(paywallTertiaryTextColor)
-                            Text(L10n.tr("You can manage subscriptions in Apple ID settings."))
-                                .font(.caption2)
-                                .multilineTextAlignment(.center)
-                                .foregroundStyle(paywallTertiaryTextColor)
+                            HStack(spacing: 14) {
+                                if let termsOfUseURL {
+                                    Link("Terms", destination: termsOfUseURL)
+                                }
+                                if let privacyPolicyURL {
+                                    Link("Privacy", destination: privacyPolicyURL)
+                                }
+                            }
+                            .font(.caption2.weight(.semibold))
+                            .tint(paywallPrimaryTextColor)
+
+                            if let manageSubscriptionsURL {
+                                Link(L10n.tr("You can manage subscriptions in Apple ID settings."), destination: manageSubscriptionsURL)
+                                    .font(.caption2.weight(.semibold))
+                                    .underline()
+                                    .multilineTextAlignment(.center)
+                                    .tint(paywallPrimaryTextColor)
+                            }
                         }
                     }
                     .padding(.horizontal, 22)
@@ -1073,7 +1087,10 @@ struct ContentView: View {
     }
 
     private var continueButtonTitle: String {
-        L10n.tr("Continue")
+        guard let selected = selectedPaywallOption else {
+            return L10n.tr("Continue")
+        }
+        return L10n.fmt("Continue • %@", selected.priceText)
     }
 
     private var selectedFormatTitle: String {
@@ -1084,6 +1101,69 @@ struct ContentView: View {
     private var selectedResolutionTitle: String {
         viewModel.resolutionOptions.first(where: { abs($0.scale - viewModel.selectedResolutionScale) < 0.0001 })?.title
             ?? L10n.tr("Same as source")
+    }
+
+    private var selectedPaywallOption: PurchasePlanOption? {
+        guard let selectedPaywallPlanID else { return nil }
+        return viewModel.purchaseOptions.first(where: { $0.id == selectedPaywallPlanID })
+    }
+
+    private var termsOfUseURL: URL? {
+        if let configured = Bundle.main.object(forInfoDictionaryKey: "TERMS_OF_USE_URL") as? String,
+           let url = URL(string: configured), !configured.isEmpty
+        {
+            return url
+        }
+        return URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")
+    }
+
+    private var privacyPolicyURL: URL? {
+        if let configured = Bundle.main.object(forInfoDictionaryKey: "PRIVACY_POLICY_URL") as? String,
+           let url = URL(string: configured), !configured.isEmpty
+        {
+            return url
+        }
+        return nil
+    }
+
+    private var manageSubscriptionsURL: URL? {
+        URL(string: "https://apps.apple.com/account/subscriptions")
+    }
+
+    @ViewBuilder
+    private var manageSubscriptionsInlineButton: some View {
+        Button {
+            openManageSubscriptions()
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "person.crop.circle.badge.checkmark")
+                    .font(.subheadline.weight(.semibold))
+                Text(L10n.tr("You can manage subscriptions in Apple ID settings."))
+                    .font(.caption.weight(.semibold))
+                    .multilineTextAlignment(.leading)
+                Spacer(minLength: 0)
+                Image(systemName: "arrow.up.right.square")
+                    .font(.caption.weight(.bold))
+            }
+            .foregroundStyle(Color(uiColor: .secondaryLabel))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color(uiColor: .tertiarySystemBackground))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(Color(uiColor: .separator).opacity(colorScheme == .dark ? 0.45 : 0.25), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func openManageSubscriptions() {
+        if let manageSubscriptionsURL {
+            openURL(manageSubscriptionsURL)
+        }
     }
 
     private var advancedOptionsSection: some View {

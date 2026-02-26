@@ -34,6 +34,12 @@ final class PurchaseManager {
         lifetimeProductID
     ]
 
+    private static let fallbackPriceByProductID: [String: String] = [
+        weeklyProductID: "$0.99",
+        monthlyProductID: "$2.99",
+        lifetimeProductID: "$29.99"
+    ]
+
     func loadPlanOptions() async -> [PurchasePlanOption] {
         let byID = await loadProductsByID()
 
@@ -52,7 +58,7 @@ final class PurchaseManager {
                 id: id,
                 title: title(for: id),
                 subtitle: subtitle(for: id),
-                priceText: "",
+                priceText: fallbackPrice(for: id),
                 isAvailable: false
             )
         }
@@ -142,5 +148,9 @@ final class PurchaseManager {
         default:
             return L10n.tr("Unlimited conversions")
         }
+    }
+
+    private func fallbackPrice(for productID: String) -> String {
+        Self.fallbackPriceByProductID[productID] ?? "$0.00"
     }
 }
