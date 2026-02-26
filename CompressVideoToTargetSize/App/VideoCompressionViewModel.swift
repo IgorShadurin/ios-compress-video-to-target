@@ -357,7 +357,9 @@ final class VideoCompressionViewModel: ObservableObject {
         do {
             let sourceURL = try await resolveSourceURL(from: pickerItem, requestID: requestID)
             guard requestID == currentLoadRequestID else { return }
-            try await processSelectedSource(url: sourceURL, requestID: requestID)
+            let stagedURL = (try? stageResolvedSourceForProcessing(from: sourceURL)) ?? sourceURL
+            guard requestID == currentLoadRequestID else { return }
+            try await processSelectedSource(url: stagedURL, requestID: requestID)
         } catch {
             completeSourceLoadingWithFailure(
                 requestID: requestID,
@@ -641,6 +643,21 @@ final class VideoCompressionViewModel: ObservableObject {
         return localURL
     }
 
+    private func stageResolvedSourceForProcessing(from originalURL: URL) throws -> URL {
+        let fileManager = FileManager.default
+        let outputExtension = originalURL.pathExtension.isEmpty ? "mov" : originalURL.pathExtension
+        let localURL = fileManager.temporaryDirectory
+            .appendingPathComponent("gallery-import-\(UUID().uuidString)")
+            .appendingPathExtension(outputExtension)
+
+        if fileManager.fileExists(atPath: localURL.path) {
+            try fileManager.removeItem(at: localURL)
+        }
+
+        try fileManager.copyItem(at: originalURL, to: localURL)
+        return localURL
+    }
+
     func convert() async {
         guard !isConverting else { return }
         guard let sourceMetadata else {
@@ -728,6 +745,8 @@ final class VideoCompressionViewModel: ObservableObject {
                 statusMessage = L10n.tr("Conversion cancelled.")
                 errorMessage = nil
                 conversionProgress = nil
+                convertedVideoURL = nil
+                convertedFileSizeBytes = nil
                 Task {
                     await AppDiagnostics.shared.log(
                         level: "warn",
@@ -742,6 +761,8 @@ final class VideoCompressionViewModel: ObservableObject {
                 statusMessage = L10n.tr("Conversion failed.")
                 errorMessage = friendlyConversionErrorMessage(from: error)
                 conversionProgress = nil
+                convertedVideoURL = nil
+                convertedFileSizeBytes = nil
                 let nsError = error as NSError
                 Task {
                     await AppDiagnostics.shared.log(
@@ -814,15 +835,44 @@ final class VideoCompressionViewModel: ObservableObject {
             return
         }
 
+        let fileManager = FileManager.default
+        let outputExtension = convertedVideoURL.pathExtension.isEmpty ? "mp4" : convertedVideoURL.pathExtension
+        let importURL = fileManager.temporaryDirectory
+            .appendingPathComponent("photo-export-\(UUID().uuidString)")
+            .appendingPathExtension(outputExtension)
+
         do {
-            try await PHPhotoLibrary.shared().performChanges {
-                PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: convertedVideoURL)
+            if fileManager.fileExists(atPath: importURL.path) {
+                try fileManager.removeItem(at: importURL)
             }
+            try fileManager.copyItem(at: convertedVideoURL, to: importURL)
+
+            try await PHPhotoLibrary.shared().performChanges {
+                if let request = PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: importURL) {
+                    // Force a fresh item in Recents instead of inheriting an old capture timestamp.
+                    request.creationDate = Date()
+                }
+            }
+            try? fileManager.removeItem(at: importURL)
             statusMessage = L10n.tr("Saved to Photo Library.")
             saveSuccessMessage = L10n.tr("Video saved to Photo Library.")
             isSaveSuccessAlertPresented = true
         } catch {
+            try? fileManager.removeItem(at: importURL)
             errorMessage = L10n.fmt("Failed to save to Photo Library: %@", error.localizedDescription)
+            let nsError = error as NSError
+            Task {
+                await AppDiagnostics.shared.log(
+                    level: "error",
+                    category: "save",
+                    message: "save_photo_library_failed",
+                    context: .diagnostics(
+                        ("error", error.localizedDescription),
+                        ("errorDomain", nsError.domain),
+                        ("errorCode", "\(nsError.code)")
+                    )
+                )
+            }
         }
     }
 
@@ -1048,8 +1098,13 @@ final class VideoCompressionViewModel: ObservableObject {
     }
 
     private func finalizeSuccessfulConversion(outputURL: URL, sourceMetadata: VideoMetadata) throws {
+        let outputSize = try fileSize(for: outputURL)
+        guard outputSize > 0 else {
+            throw VideoCompressionServiceError.noFinalOutput
+        }
+
         convertedVideoURL = outputURL
-        convertedFileSizeBytes = try fileSize(for: outputURL)
+        convertedFileSizeBytes = outputSize
         errorMessage = nil
 
         if !hasPremiumAccess {
@@ -1111,6 +1166,8 @@ final class VideoCompressionViewModel: ObservableObject {
         let targetBytes = currentPlan.targetBytes
         var bestOversizedBytes: Int64 = .max
         let primaryAttempts = 5
+        let primaryPhaseWeight = 0.72
+        let primaryAttemptWeight = primaryPhaseWeight / Double(primaryAttempts)
 
         for attempt in 1...primaryAttempts {
             try throwIfCancellationRequested()
@@ -1119,7 +1176,7 @@ final class VideoCompressionViewModel: ObservableObject {
                 : L10n.fmt("Optimizing to match target... (%d/%d)", attempt, primaryAttempts)
             if attempt > 1 {
                 didRetryConversion = true
-                conversionProgress = 0
+                conversionProgress = max(conversionProgress ?? 0, Double(attempt - 1) * primaryAttemptWeight)
             }
 
             do {
@@ -1130,7 +1187,12 @@ final class VideoCompressionViewModel: ObservableObject {
                     removeHDR: settings.removeHDR,
                     progressHandler: { [weak self] progress in
                         Task { @MainActor in
-                            self?.conversionProgress = progress
+                            let normalized = min(max(progress, 0), 1)
+                            let mapped = min(
+                                primaryPhaseWeight,
+                                (Double(attempt - 1) * primaryAttemptWeight) + (normalized * primaryAttemptWeight)
+                            )
+                            self?.conversionProgress = max(self?.conversionProgress ?? 0, mapped)
                         }
                     }
                 )
@@ -1208,21 +1270,43 @@ final class VideoCompressionViewModel: ObservableObject {
 
         if let compressionError = error as? VideoCompressionServiceError {
             switch compressionError {
-            case .cannotAddVideoInput, .startWritingFailed, .appendFailed:
+            case .cannotCreateReader,
+                 .cannotCreateWriter,
+                 .cannotAddVideoOutput,
+                 .cannotAddVideoInput,
+                 .cannotAddAudioOutput,
+                 .cannotAddAudioInput,
+                 .startReadingFailed,
+                 .startWritingFailed,
+                 .appendFailed,
+                 .noFinalOutput,
+                 .exportSessionUnavailable,
+                 .exportFailed:
                 return true
+            case .cancelled:
+                return false
             default:
                 break
             }
         }
 
         let lowered = error.localizedDescription.lowercased()
-        if lowered.contains("cannot encode") || lowered.contains("encode media") {
+        if lowered.contains("cannot encode") ||
+            lowered.contains("encode media") ||
+            lowered.contains("operation could not be completed")
+        {
             return true
         }
 
         let nsError = error as NSError
-        return nsError.domain == AVFoundationErrorDomain &&
-            (lowered.contains("encode") || lowered.contains("encoder"))
+        if nsError.domain == AVFoundationErrorDomain {
+            if nsError.code == -11800 || nsError.code == -11861 || nsError.code == -11821 {
+                return true
+            }
+            return lowered.contains("encode") || lowered.contains("encoder")
+        }
+
+        return false
     }
 
     private func throwIfCancellationRequested() throws {
@@ -1249,30 +1333,43 @@ final class VideoCompressionViewModel: ObservableObject {
     ) async throws -> URL {
         statusMessage = L10n.tr("Applying aggressive compatibility mode...")
         didRetryConversion = true
-        conversionProgress = 0
+        let fallbackPhaseStart = 0.72
+        let fallbackPhaseWeight = 0.23
+        conversionProgress = max(conversionProgress ?? 0, fallbackPhaseStart)
 
         let duration = max(sourceMetadata.durationSeconds, 0.001)
         let totalBitrateBudget = max(96_000, Int((Double(targetBytes) * 8 / duration) * 0.985))
         let sourceHasAudio = sourceMetadata.sourceAudioBitrate > 0
+        let lowTargetMode = totalBitrateBudget < 180_000 || duration < 30
+        let fallbackMinScale = 0.25
+        let audioFloor = lowTargetMode ? 12_000 : 16_000
+        let videoFloor = lowTargetMode ? 110_000 : 85_000
         var resizeScale = 0.92
         var targetAudioBitrate: Int
         if sourceHasAudio {
             let preferredAudio = min(max(24_000, sourceMetadata.sourceAudioBitrate), 80_000)
             let budgetLimitedAudio = max(16_000, totalBitrateBudget / 3)
             targetAudioBitrate = min(preferredAudio, budgetLimitedAudio)
+            if lowTargetMode {
+                targetAudioBitrate = min(targetAudioBitrate, max(audioFloor, totalBitrateBudget / 5))
+            }
         } else {
             targetAudioBitrate = 0
         }
-        var targetVideoBitrate = max(85_000, totalBitrateBudget - targetAudioBitrate)
+        var targetVideoBitrate = max(videoFloor, totalBitrateBudget - targetAudioBitrate)
         var bestSeenBytes = bestOversizedBytes
         var lastCompressionError: Error?
         let maxAttempts = 12
+        let attemptWeight = fallbackPhaseWeight / Double(maxAttempts)
         let outputContainers: [CompressionContainer] = [.mp4, .mov, .m4v]
 
         for attempt in 1...maxAttempts {
             try throwIfCancellationRequested()
             statusMessage = L10n.fmt("Compatibility retry... (%d/%d)", attempt, maxAttempts)
-            conversionProgress = 0
+            conversionProgress = max(
+                conversionProgress ?? 0,
+                fallbackPhaseStart + (Double(attempt - 1) * attemptWeight)
+            )
             let attemptVideoBitrate = targetVideoBitrate
             let attemptAudioBitrate = targetAudioBitrate
             let attemptResizeScale = resizeScale
@@ -1312,7 +1409,9 @@ final class VideoCompressionViewModel: ObservableObject {
                     removeHDR: true,
                     progressHandler: { [weak self] progress in
                         Task { @MainActor in
-                            self?.conversionProgress = progress
+                            let normalized = min(max(progress, 0), 1)
+                            let mapped = fallbackPhaseStart + (Double(attempt - 1) * attemptWeight) + (normalized * attemptWeight)
+                            self?.conversionProgress = max(self?.conversionProgress ?? 0, mapped)
                         }
                     }
                 )
@@ -1326,11 +1425,11 @@ final class VideoCompressionViewModel: ObservableObject {
                 try? FileManager.default.removeItem(at: outputURL)
 
                 // Tighten slowly to avoid AVFoundation encoder failures on low-bitrate passes.
-                targetVideoBitrate = max(80_000, Int(Double(targetVideoBitrate) * 0.90))
+                targetVideoBitrate = max(videoFloor, Int(Double(targetVideoBitrate) * 0.90))
                 if sourceHasAudio {
-                    targetAudioBitrate = max(16_000, Int(Double(targetAudioBitrate) * 0.88))
+                    targetAudioBitrate = max(audioFloor, Int(Double(targetAudioBitrate) * 0.88))
                 }
-                resizeScale = max(0.32, resizeScale * 0.90)
+                resizeScale = max(fallbackMinScale, resizeScale * 0.90)
             } catch {
                 if isCancellationError(error) {
                     throw error
@@ -1352,16 +1451,17 @@ final class VideoCompressionViewModel: ObservableObject {
                 }
 
                 // Encoder rejected settings: prefer stronger downscale, keep bitrate in a safer range.
-                targetVideoBitrate = max(85_000, targetVideoBitrate)
+                targetVideoBitrate = max(videoFloor, targetVideoBitrate)
                 if sourceHasAudio {
-                    targetAudioBitrate = max(16_000, Int(Double(targetAudioBitrate) * 0.92))
+                    targetAudioBitrate = max(audioFloor, Int(Double(targetAudioBitrate) * 0.92))
                 }
-                resizeScale = max(0.32, resizeScale * 0.82)
+                resizeScale = max(fallbackMinScale, resizeScale * 0.82)
             }
         }
 
         try throwIfCancellationRequested()
         statusMessage = L10n.tr("Trying system fallback exporter...")
+        conversionProgress = max(conversionProgress ?? 0, fallbackPhaseStart + fallbackPhaseWeight)
         do {
             let exportedWithAudioURL = try await compressionService.exportLowQualityFallback(
                 sourceURL: sourceMetadata.sourceURL
@@ -1440,24 +1540,35 @@ final class VideoCompressionViewModel: ObservableObject {
         let duration = max(exportedMetadata.durationSeconds, 0.001)
         let totalBitrateBudget = max(96_000, Int((Double(targetBytes) * 8 / duration) * 0.985))
         let sourceHasAudio = exportedMetadata.sourceAudioBitrate > 0
+        let lowTargetMode = totalBitrateBudget < 180_000 || duration < 30
+        let fallbackMinScale = 0.25
+        let audioFloor = lowTargetMode ? 12_000 : 16_000
+        let videoFloor = lowTargetMode ? 105_000 : 70_000
 
         var targetAudioBitrate: Int
         if sourceHasAudio {
             let preferredAudio = min(max(16_000, exportedMetadata.sourceAudioBitrate), 48_000)
             let budgetLimitedAudio = max(16_000, totalBitrateBudget / 3)
             targetAudioBitrate = min(preferredAudio, budgetLimitedAudio)
+            if lowTargetMode {
+                targetAudioBitrate = min(targetAudioBitrate, max(audioFloor, totalBitrateBudget / 5))
+            }
         } else {
             targetAudioBitrate = 0
         }
 
-        var targetVideoBitrate = max(70_000, totalBitrateBudget - targetAudioBitrate)
+        var targetVideoBitrate = max(videoFloor, totalBitrateBudget - targetAudioBitrate)
         var resizeScale = 0.86
         var bestSeenBytes = initialBestOversizedBytes
         var lastError: Error?
         let maxAttempts = 10
+        let progressStart = 0.95
+        let progressWeight = 0.045
+        let attemptWeight = progressWeight / Double(maxAttempts)
 
         for attempt in 1...maxAttempts {
             try throwIfCancellationRequested()
+            conversionProgress = max(conversionProgress ?? 0, progressStart + (Double(attempt - 1) * attemptWeight))
             let attemptVideoBitrate = targetVideoBitrate
             let attemptAudioBitrate = targetAudioBitrate
             let attemptResizeScale = resizeScale
@@ -1494,7 +1605,13 @@ final class VideoCompressionViewModel: ObservableObject {
                     metadata: exportedMetadata,
                     plan: plan,
                     removeHDR: true,
-                    progressHandler: { _ in }
+                    progressHandler: { [weak self] progress in
+                        Task { @MainActor in
+                            let normalized = min(max(progress, 0), 1)
+                            let mapped = progressStart + (Double(attempt - 1) * attemptWeight) + (normalized * attemptWeight)
+                            self?.conversionProgress = max(self?.conversionProgress ?? 0, mapped)
+                        }
+                    }
                 )
 
                 let outputSize = try fileSize(for: outputURL)
@@ -1505,11 +1622,11 @@ final class VideoCompressionViewModel: ObservableObject {
                 bestSeenBytes = min(bestSeenBytes, outputSize)
                 try? FileManager.default.removeItem(at: outputURL)
 
-                targetVideoBitrate = max(70_000, Int(Double(targetVideoBitrate) * 0.92))
+                targetVideoBitrate = max(videoFloor, Int(Double(targetVideoBitrate) * 0.92))
                 if sourceHasAudio {
-                    targetAudioBitrate = max(16_000, Int(Double(targetAudioBitrate) * 0.90))
+                    targetAudioBitrate = max(audioFloor, Int(Double(targetAudioBitrate) * 0.90))
                 }
-                resizeScale = max(0.32, resizeScale * 0.88)
+                resizeScale = max(fallbackMinScale, resizeScale * 0.88)
             } catch {
                 if isCancellationError(error) {
                     throw error
@@ -1530,11 +1647,11 @@ final class VideoCompressionViewModel: ObservableObject {
                     )
                 }
 
-                targetVideoBitrate = max(76_000, targetVideoBitrate)
+                targetVideoBitrate = max(videoFloor, targetVideoBitrate)
                 if sourceHasAudio {
-                    targetAudioBitrate = max(16_000, Int(Double(targetAudioBitrate) * 0.95))
+                    targetAudioBitrate = max(audioFloor, Int(Double(targetAudioBitrate) * 0.95))
                 }
-                resizeScale = max(0.32, resizeScale * 0.80)
+                resizeScale = max(fallbackMinScale, resizeScale * 0.80)
             }
         }
 

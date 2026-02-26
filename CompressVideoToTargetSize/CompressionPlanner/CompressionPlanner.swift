@@ -224,13 +224,25 @@ public struct CompressionPlanner {
             outputCodec = source.codec
         }
 
+        let compressionRatio: Double
+        if source.fileSizeBytes > 0 {
+            compressionRatio = Double(source.fileSizeBytes) / Double(targetBytes)
+        } else {
+            compressionRatio = 1.0
+        }
+        let firstPassSafetyFactor = firstPassSafetyFactor(
+            compressionRatio: compressionRatio,
+            durationSeconds: source.durationSeconds
+        )
         let totalBitrateBudget = max(
             Self.minVideoBitrate,
-            Int((Double(targetBytes) * 8 / source.durationSeconds) * 0.985)
+            Int((Double(targetBytes) * 8 / source.durationSeconds) * firstPassSafetyFactor)
         )
         var targetAudioBitrate = deriveAudioBitrate(
             sourceAudioBitrate: source.sourceAudioBitrate,
-            totalBitrateBudget: totalBitrateBudget
+            totalBitrateBudget: totalBitrateBudget,
+            compressionRatio: compressionRatio,
+            durationSeconds: source.durationSeconds
         )
         var targetVideoBitrate = min(
             max(Self.minVideoBitrate, totalBitrateBudget - targetAudioBitrate),
@@ -260,6 +272,21 @@ public struct CompressionPlanner {
             removeHDR: settings.removeHDR
         )
         resizeScale = min(resizeScale, safeScale)
+
+        if compressionRatio >= 20 {
+            let severity = min(1.0, max(0.0, (compressionRatio - 20) / 10))
+            let videoFactor = 0.86 - (0.12 * severity)
+            targetVideoBitrate = max(Self.minVideoBitrate, Int((Double(targetVideoBitrate) * videoFactor).rounded(.down)))
+
+            if source.sourceAudioBitrate > 0 {
+                let audioFloor = 24_000
+                targetAudioBitrate = max(audioFloor, Int((Double(targetAudioBitrate) * 0.9).rounded(.down)))
+            }
+
+            let minScale = 1 / sqrt(Self.maxResizeReductionFactor)
+            let scaleFactor = source.durationSeconds > 600 ? 0.84 : 0.90
+            resizeScale = max(minScale, min(resizeScale, resizeScale * scaleFactor))
+        }
 
         var estimatedBytes = estimateOutputBytes(
             videoBitrate: targetVideoBitrate,
@@ -425,13 +452,38 @@ public struct CompressionPlanner {
         return out
     }
 
-    private func deriveAudioBitrate(sourceAudioBitrate: Int, totalBitrateBudget: Int) -> Int {
-        if sourceAudioBitrate <= 0 {
-            return min(Self.fallbackAudioBitrate, max(32_000, totalBitrateBudget / 8))
+    private func deriveAudioBitrate(
+        sourceAudioBitrate: Int,
+        totalBitrateBudget: Int,
+        compressionRatio: Double,
+        durationSeconds: Double
+    ) -> Int {
+        let aggressiveMode = compressionRatio >= 24 || durationSeconds >= 900
+        let ultraAggressiveMode = compressionRatio >= 28
+
+        let budgetDivisor: Int
+        let cap: Int
+        let floor: Int
+        if ultraAggressiveMode {
+            budgetDivisor = 9
+            cap = 40_000
+            floor = 20_000
+        } else if aggressiveMode {
+            budgetDivisor = 8
+            cap = 48_000
+            floor = 24_000
+        } else {
+            budgetDivisor = 6
+            cap = 192_000
+            floor = 32_000
         }
 
-        let cappedSource = min(sourceAudioBitrate, 192_000)
-        let budgetLimited = max(32_000, totalBitrateBudget / 6)
+        if sourceAudioBitrate <= 0 {
+            return min(Self.fallbackAudioBitrate, max(floor, totalBitrateBudget / budgetDivisor))
+        }
+
+        let cappedSource = min(sourceAudioBitrate, cap)
+        let budgetLimited = max(floor, totalBitrateBudget / budgetDivisor)
         return min(cappedSource, budgetLimited)
     }
 
@@ -511,5 +563,29 @@ public struct CompressionPlanner {
         guard let value else { return nil }
         let minScale = 1 / sqrt(Self.maxResizeReductionFactor)
         return max(minScale, min(1.0, value))
+    }
+
+    private func firstPassSafetyFactor(
+        compressionRatio: Double,
+        durationSeconds: Double
+    ) -> Double {
+        let clampedRatio = max(1.0, min(Self.maxCompressionRatio, compressionRatio))
+        let normalizedRatio = (clampedRatio - 1.0) / (Self.maxCompressionRatio - 1.0)
+
+        // Higher ratios are more likely to overshoot in real encoders, so reserve headroom.
+        var ratioPenalty = normalizedRatio * 0.22
+        if clampedRatio >= 24 {
+            ratioPenalty += min(0.04, ((clampedRatio - 24) / 6) * 0.04)
+        }
+
+        // Very long clips can fluctuate bitrate significantly; add a small extra guard band.
+        let longDurationPenalty: Double
+        if durationSeconds > 480 {
+            longDurationPenalty = min(0.07, ((durationSeconds - 480) / 2520) * 0.07)
+        } else {
+            longDurationPenalty = 0
+        }
+
+        return max(0.62, min(0.985, 0.985 - ratioPenalty - longDurationPenalty))
     }
 }

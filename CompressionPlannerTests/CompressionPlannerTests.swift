@@ -324,6 +324,63 @@ struct CompressionPlannerTests {
     }
 
     @Test
+    func highCompressionLongVideoUsesAggressiveFirstPassBudget() throws {
+        let source = makeSource(
+            duration: 1_492.68,
+            bytes: 1_556_463_766,
+            width: 1920,
+            height: 1080,
+            codec: .hevc,
+            hdr: false,
+            container: .mov,
+            sourceBitrate: 7_688_549,
+            audioBitrate: 128_000
+        )
+        let settings = CompressionSettings(
+            targetValue: 52,
+            targetUnit: .mb,
+            allowResizeUpTo10x: false,
+            removeHDR: false,
+            outputFormatIdentifier: nil
+        )
+
+        let plan = try planner.makePlan(
+            source: source,
+            settings: settings,
+            supportedOutputFormats: [.mov, .mp4, .m4v]
+        )
+
+        #expect(plan.estimatedOutputBytes <= Int64(Double(plan.targetBytes) * 0.90))
+        #expect(plan.targetVideoBitrate < source.sourceVideoBitrate)
+        #expect(plan.resizeScale < 1.0)
+    }
+
+    @Test
+    func img5930IssueProfileBuildsFirstPassPlanWithSafetyHeadroom() async throws {
+        let testFileURL = URL(fileURLWithPath: "/Users/test/XCodeProjects/CompressTarget_data/IMG_5930.MOV")
+        #expect(FileManager.default.fileExists(atPath: testFileURL.path))
+
+        let source = try await makeSourceProfile(from: testFileURL)
+        let settings = CompressionSettings(
+            targetValue: 52,
+            targetUnit: .mb,
+            allowResizeUpTo10x: false,
+            removeHDR: false,
+            outputFormatIdentifier: nil
+        )
+
+        let plan = try planner.makePlan(
+            source: source,
+            settings: settings,
+            supportedOutputFormats: [.mov, .mp4, .m4v]
+        )
+
+        #expect(plan.estimatedOutputBytes <= Int64(Double(plan.targetBytes) * 0.90))
+        #expect(plan.resizeScale < 1.0)
+        #expect(plan.targetVideoBitrate < source.sourceVideoBitrate)
+    }
+
+    @Test
     func writerBaseDimensionsSwapForQuarterTurnTransform() {
         let portraitRotation = CGAffineTransform(a: 0, b: 1, c: -1, d: 0, tx: 1080, ty: 0)
         #expect(VideoGeometry.usesQuarterTurnTransform(portraitRotation))
@@ -460,6 +517,8 @@ struct CompressionPlannerTests {
             audioBitrate = 0
         }
 
+        let container = parseContainer(fileURL.pathExtension)
+
         return SourceVideoProfile(
             durationSeconds: durationSeconds,
             fileSizeBytes: sizeBytes,
@@ -467,7 +526,7 @@ struct CompressionPlannerTests {
             height: height,
             frameRate: frameRate,
             hasHDR: false,
-            container: .mp4,
+            container: container,
             codec: codec,
             sourceVideoBitrate: videoBitrate,
             sourceAudioBitrate: audioBitrate

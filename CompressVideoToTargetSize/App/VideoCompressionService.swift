@@ -1,5 +1,6 @@
 import AVFoundation
 import Foundation
+import VideoToolbox
 
 enum VideoCompressionServiceError: LocalizedError {
     case cannotCreateReader
@@ -227,15 +228,38 @@ final class VideoCompressionService {
             scale: plan.resizeScale
         )
 
+        let compressionRatio: Double
+        if metadata.fileSizeBytes > 0 && plan.targetBytes > 0 {
+            compressionRatio = Double(metadata.fileSizeBytes) / Double(plan.targetBytes)
+        } else {
+            compressionRatio = 1.0
+        }
+        let shouldUseStrictRateControl = compressionRatio >= 8 || metadata.durationSeconds >= 90
+
         var compressionProperties: [String: Any] = [
             AVVideoAverageBitRateKey: plan.targetVideoBitrate,
             AVVideoMaxKeyFrameIntervalDurationKey: 2.0,
             AVVideoExpectedSourceFrameRateKey: Int(max(1, metadata.frameRate.rounded()))
         ]
+        if shouldUseStrictRateControl {
+            // Keep a soft cap to reduce overshoot for high-compression / long videos.
+            let dataRateLimitBytesPerSecond = max(
+                14_000,
+                Int((Double(plan.targetVideoBitrate) * 1.10 / 8).rounded(.up))
+            )
+            compressionProperties[kVTCompressionPropertyKey_DataRateLimits as String] = [dataRateLimitBytesPerSecond * 2, 2]
+        }
 
         switch plan.outputCodec {
         case .h264:
-            compressionProperties[AVVideoProfileLevelKey] = AVVideoProfileLevelH264HighAutoLevel
+            let pixelCount = outputSize.width * outputSize.height
+            if plan.targetVideoBitrate < 350_000 || pixelCount <= 640 * 360 {
+                compressionProperties[AVVideoProfileLevelKey] = AVVideoProfileLevelH264BaselineAutoLevel
+            } else if plan.targetVideoBitrate < 1_200_000 || pixelCount <= 1280 * 720 {
+                compressionProperties[AVVideoProfileLevelKey] = AVVideoProfileLevelH264MainAutoLevel
+            } else {
+                compressionProperties[AVVideoProfileLevelKey] = AVVideoProfileLevelH264HighAutoLevel
+            }
         case .hevc:
             break
         }
@@ -273,6 +297,7 @@ final class VideoCompressionService {
 
         let videoInput = AVAssetWriterInput(mediaType: .video, outputSettings: finalVideoSettings)
         videoInput.expectsMediaDataInRealTime = false
+        videoInput.performsMultiPassEncodingIfSupported = shouldUseStrictRateControl
         videoInput.transform = metadata.preferredTransform
         guard writer.canAdd(videoInput) else {
             throw VideoCompressionServiceError.cannotAddVideoInput
@@ -537,9 +562,15 @@ final class VideoCompressionService {
 
     private func calculateOutputSize(width: Int, height: Int, scale: Double) -> (width: Int, height: Int) {
         let clampedScale = min(max(scale, 1 / sqrt(CompressionPlanner.maxResizeReductionFactor)), 1)
-        let scaledWidth = makeEven(Int((Double(width) * clampedScale).rounded()))
-        let scaledHeight = makeEven(Int((Double(height) * clampedScale).rounded()))
+        let scaledWidth = makeCodecAligned(Int((Double(width) * clampedScale).rounded()))
+        let scaledHeight = makeCodecAligned(Int((Double(height) * clampedScale).rounded()))
         return (width: scaledWidth, height: scaledHeight)
+    }
+
+    private func makeCodecAligned(_ value: Int) -> Int {
+        let evenValue = makeEven(value)
+        let alignedTo16 = (evenValue / 16) * 16
+        return max(64, alignedTo16)
     }
 
     private func makeOutputURL(container: CompressionContainer) -> URL {
