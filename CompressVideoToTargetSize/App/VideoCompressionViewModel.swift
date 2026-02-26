@@ -147,6 +147,7 @@ final class VideoCompressionViewModel: ObservableObject {
 
     private var restoringSettings = false
     private var currentLoadRequestID = UUID()
+    private var conversionCancellationRequested = false
 
     init() {
         loadSettings()
@@ -399,6 +400,9 @@ final class VideoCompressionViewModel: ObservableObject {
 
     func presentPaywall() {
         isPaywallPresented = true
+        Task {
+            await refreshMonetizationState()
+        }
     }
 
     func dismissPaywall() {
@@ -674,6 +678,7 @@ final class VideoCompressionViewModel: ObservableObject {
         workflowStep = .conversion
         hasStartedConversion = true
         isConverting = true
+        conversionCancellationRequested = false
         isCancellingConversion = false
         conversionProgress = 0
         statusMessage = L10n.tr("Starting first conversion pass...")
@@ -699,21 +704,27 @@ final class VideoCompressionViewModel: ObservableObject {
             )
         }
 
+        var shouldReturnToSourceAfterCancellation = false
+
         do {
+            try throwIfCancellationRequested()
             let outputURL = try await compressToTargetSize(
                 sourceMetadata: sourceMetadata,
                 settings: settings
             )
+            try throwIfCancellationRequested()
             try await ensureAudioPreservedIfRequired(
                 sourceMetadata: sourceMetadata,
                 outputURL: outputURL
             )
+            try throwIfCancellationRequested()
             try finalizeSuccessfulConversion(
                 outputURL: outputURL,
                 sourceMetadata: sourceMetadata
             )
         } catch {
-            if case VideoCompressionServiceError.cancelled = error {
+            if isCancellationError(error) {
+                shouldReturnToSourceAfterCancellation = true
                 statusMessage = L10n.tr("Conversion cancelled.")
                 errorMessage = nil
                 conversionProgress = nil
@@ -748,8 +759,13 @@ final class VideoCompressionViewModel: ObservableObject {
         }
 
         refreshQuotaStatusMessage()
+        conversionCancellationRequested = false
         isCancellingConversion = false
         isConverting = false
+
+        if shouldReturnToSourceAfterCancellation {
+            startNewConversionFlow()
+        }
     }
 
     private func ensureAudioPreservedIfRequired(
@@ -782,6 +798,7 @@ final class VideoCompressionViewModel: ObservableObject {
         guard isConverting else { return }
         guard !isCancellingConversion else { return }
 
+        conversionCancellationRequested = true
         isCancellingConversion = true
         statusMessage = L10n.tr("Cancelling conversion...")
         compressionService.cancelCurrentCompression()
@@ -1096,6 +1113,7 @@ final class VideoCompressionViewModel: ObservableObject {
         let primaryAttempts = 5
 
         for attempt in 1...primaryAttempts {
+            try throwIfCancellationRequested()
             statusMessage = attempt == 1
                 ? L10n.tr("Starting first conversion pass...")
                 : L10n.fmt("Optimizing to match target... (%d/%d)", attempt, primaryAttempts)
@@ -1137,7 +1155,7 @@ final class VideoCompressionViewModel: ObservableObject {
                     supportedOutputFormats: supportedFormats
                 )
             } catch {
-                if case VideoCompressionServiceError.cancelled = error {
+                if isCancellationError(error) {
                     throw error
                 }
                 if !shouldTryCompatibilityFallback(for: error) {
@@ -1184,7 +1202,7 @@ final class VideoCompressionViewModel: ObservableObject {
     }
 
     private func shouldTryCompatibilityFallback(for error: Error) -> Bool {
-        if case VideoCompressionServiceError.cancelled = error {
+        if isCancellationError(error) {
             return false
         }
 
@@ -1205,6 +1223,23 @@ final class VideoCompressionViewModel: ObservableObject {
         let nsError = error as NSError
         return nsError.domain == AVFoundationErrorDomain &&
             (lowered.contains("encode") || lowered.contains("encoder"))
+    }
+
+    private func throwIfCancellationRequested() throws {
+        if conversionCancellationRequested || Task.isCancelled {
+            throw VideoCompressionServiceError.cancelled
+        }
+    }
+
+    private func isCancellationError(_ error: Error) -> Bool {
+        if case VideoCompressionServiceError.cancelled = error {
+            return true
+        }
+        if error is CancellationError {
+            return true
+        }
+        let nsError = error as NSError
+        return nsError.domain == NSCocoaErrorDomain && nsError.code == NSUserCancelledError
     }
 
     private func compressWithGuaranteedFallback(
@@ -1235,6 +1270,7 @@ final class VideoCompressionViewModel: ObservableObject {
         let outputContainers: [CompressionContainer] = [.mp4, .mov, .m4v]
 
         for attempt in 1...maxAttempts {
+            try throwIfCancellationRequested()
             statusMessage = L10n.fmt("Compatibility retry... (%d/%d)", attempt, maxAttempts)
             conversionProgress = 0
             let attemptVideoBitrate = targetVideoBitrate
@@ -1296,7 +1332,7 @@ final class VideoCompressionViewModel: ObservableObject {
                 }
                 resizeScale = max(0.32, resizeScale * 0.90)
             } catch {
-                if case VideoCompressionServiceError.cancelled = error {
+                if isCancellationError(error) {
                     throw error
                 }
                 lastCompressionError = error
@@ -1324,6 +1360,7 @@ final class VideoCompressionViewModel: ObservableObject {
             }
         }
 
+        try throwIfCancellationRequested()
         statusMessage = L10n.tr("Trying system fallback exporter...")
         do {
             let exportedWithAudioURL = try await compressionService.exportLowQualityFallback(
@@ -1362,7 +1399,7 @@ final class VideoCompressionViewModel: ObservableObject {
                 )
             }
         } catch {
-            if case VideoCompressionServiceError.cancelled = error {
+            if isCancellationError(error) {
                 throw error
             }
             if lastCompressionError == nil {
@@ -1420,6 +1457,7 @@ final class VideoCompressionViewModel: ObservableObject {
         let maxAttempts = 10
 
         for attempt in 1...maxAttempts {
+            try throwIfCancellationRequested()
             let attemptVideoBitrate = targetVideoBitrate
             let attemptAudioBitrate = targetAudioBitrate
             let attemptResizeScale = resizeScale
@@ -1473,7 +1511,7 @@ final class VideoCompressionViewModel: ObservableObject {
                 }
                 resizeScale = max(0.32, resizeScale * 0.88)
             } catch {
-                if case VideoCompressionServiceError.cancelled = error {
+                if isCancellationError(error) {
                     throw error
                 }
                 lastError = error

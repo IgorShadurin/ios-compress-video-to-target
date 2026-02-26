@@ -41,6 +41,10 @@
 	<string>Allow saving compressed videos to your Photo Library.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Allow selecting videos from your Photo Library for compression.</string>
+	<key>PRIVACY_POLICY_URL</key>
+	<string>https://yumcut.com/mobile/privacy</string>
+	<key>TERMS_OF_USE_URL</key>
+	<string>https://www.apple.com/legal/internet-services/itunes/dev/stdeula/</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
