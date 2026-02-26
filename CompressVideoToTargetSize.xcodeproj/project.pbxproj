@@ -52,6 +52,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 525A4E982EB8E738007021B9 /* Build configuration list for PBXNativeTarget "CompressVideoToTargetSize" */;
 			buildPhases = (
+				F0A1B2C3D4E5F60718293A4B /* i18n Check */,
 				525A4E892EB8E736007021B9 /* Sources */,
 				DC5526CC94074DC1ABB187E0 /* SwiftLint */,
 				525A4E8A2EB8E736007021B9 /* Frameworks */,
@@ -162,6 +163,24 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		F0A1B2C3D4E5F60718293A4B /* i18n Check */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "i18n Check";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -euo pipefail\n\"${SRCROOT}/scripts/i18n-check.sh\" \"${SRCROOT}\" \"${SRCROOT}/i18n-length-limits.json\"\n";
+		};
 		DC5526CC94074DC1ABB187E0 /* SwiftLint */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
@@ -326,6 +345,8 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Config/AppInfo.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Compress Target";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.video";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -354,6 +375,8 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Config/AppInfo.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Compress Target";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.video";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
