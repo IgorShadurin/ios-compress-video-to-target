@@ -2,3 +2,4 @@ DerivedData/
 .DS_Store
 Pods/
 data/
+.idea/

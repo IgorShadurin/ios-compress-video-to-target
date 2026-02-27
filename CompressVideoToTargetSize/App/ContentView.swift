@@ -4,6 +4,18 @@ import UIKit
 import UniformTypeIdentifiers
 
 struct ContentView: View {
+    private static let showcaseStepArgument: String? = {
+        let args = ProcessInfo.processInfo.arguments
+        guard let keyIndex = args.firstIndex(of: "-uiShowcaseStep") else {
+            return nil
+        }
+        let valueIndex = args.index(after: keyIndex)
+        guard valueIndex < args.endIndex else {
+            return nil
+        }
+        return args[valueIndex].lowercased()
+    }()
+
     @StateObject private var viewModel = VideoCompressionViewModel()
     @State private var isAdvancedSettingsExpanded = false
     @State private var isFileImporterPresented = false
@@ -13,6 +25,7 @@ struct ContentView: View {
     @State private var isCancelConversionDialogPresented = false
     @State private var pendingStepNavigation: VideoCompressionViewModel.WorkflowStep?
     @State private var selectedPaywallPlanID: String?
+    @State private var hasPresentedShowcaseDoneSheet = false
 #if DEBUG
     @State private var isDebugResetDialogPresented = false
 #endif
@@ -46,6 +59,12 @@ struct ContentView: View {
             Task {
                 await viewModel.handlePickerChange()
             }
+        }
+        .onAppear {
+            presentShowcaseDoneSheetIfNeeded()
+        }
+        .onChange(of: viewModel.hasConversionSucceeded) { _, _ in
+            presentShowcaseDoneSheetIfNeeded()
         }
         .fileImporter(
             isPresented: $isFileImporterPresented,
@@ -1572,6 +1591,14 @@ struct ContentView: View {
         case .conversion:
             break
         }
+    }
+
+    private func presentShowcaseDoneSheetIfNeeded() {
+        guard Self.showcaseStepArgument == "done" else { return }
+        guard viewModel.hasConversionSucceeded else { return }
+        guard !hasPresentedShowcaseDoneSheet else { return }
+        hasPresentedShowcaseDoneSheet = true
+        isSaveDestinationDialogPresented = true
     }
 }
 

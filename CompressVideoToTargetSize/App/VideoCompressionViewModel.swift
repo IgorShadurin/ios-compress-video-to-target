@@ -13,6 +13,8 @@ final class VideoCompressionViewModel: ObservableObject {
         case source
         case settings
         case convert
+        case done
+        case paywall
     }
 
     private enum SourceLoadError: LocalizedError {
@@ -1786,6 +1788,7 @@ final class VideoCompressionViewModel: ObservableObject {
 
     private func applyShowcaseState(_ step: ShowcaseStep) {
         let sourceURL = FileManager.default.temporaryDirectory.appendingPathComponent("showcase-source.mov")
+        let convertedURL = FileManager.default.temporaryDirectory.appendingPathComponent("showcase-converted.mp4")
         let metadata = VideoMetadata(
             sourceURL: sourceURL,
             durationSeconds: 18.2,
@@ -1801,23 +1804,58 @@ final class VideoCompressionViewModel: ObservableObject {
             preferredTransform: .identity
         )
 
-        hasPremiumAccess = true
-        quotaStatusMessage = L10n.tr("Premium active: unlimited conversions.")
-        purchaseOptions = []
+        hasPremiumAccess = false
+        quotaStatusMessage = L10n.tr("One conversion left today.")
+        purchaseOptions = [
+            PurchasePlanOption(
+                id: PurchaseManager.weeklyProductID,
+                title: L10n.tr("Weekly"),
+                subtitle: L10n.tr("Unlimited conversions, billed weekly"),
+                priceText: "$0.99",
+                isAvailable: true
+            ),
+            PurchasePlanOption(
+                id: PurchaseManager.monthlyProductID,
+                title: L10n.tr("Monthly"),
+                subtitle: L10n.tr("Unlimited conversions, billed monthly"),
+                priceText: "$2.99",
+                isAvailable: true
+            ),
+            PurchasePlanOption(
+                id: PurchaseManager.lifetimeProductID,
+                title: L10n.tr("Forever"),
+                subtitle: L10n.tr("Unlimited conversions forever"),
+                priceText: "$29.99",
+                isAvailable: true
+            )
+        ]
+        sourceMetadata = nil
+        sourcePreviewImage = nil
+        sourceQuickInfoText = nil
+        supportedOutputFormats = []
+        convertedVideoURL = nil
+        convertedFileSizeBytes = nil
+        targetUnit = .mb
+        targetValueText = "25"
+        isLoadingSourceDetails = false
+        isLoadingOutputFormats = false
+        hasStartedConversion = false
+        isConverting = false
+        isCancellingConversion = false
+        conversionProgress = nil
+        estimatedOutputBytes = nil
+        saveSuccessMessage = nil
+        isSaveSuccessAlertPresented = false
         errorMessage = nil
         isPaywallPresented = false
 
         switch step {
         case .source:
             workflowStep = .source
-            sourceMetadata = nil
-            sourcePreviewImage = nil
-            sourceQuickInfoText = nil
             statusMessage = L10n.tr("Pick a video from your gallery or Files to start.")
-            isConverting = false
-            conversionProgress = nil
-            hasStartedConversion = false
         case .settings:
+            hasPremiumAccess = true
+            quotaStatusMessage = L10n.tr("Premium active: unlimited conversions.")
             workflowStep = .settings
             sourceMetadata = metadata
             sourcePreviewImage = makeShowcasePreviewImage()
@@ -1826,13 +1864,10 @@ final class VideoCompressionViewModel: ObservableObject {
             targetUnit = .mb
             targetValueText = "21"
             statusMessage = L10n.fmt("Video loaded. Suggested target: %@ %@ (~2x smaller).", "21", "MB")
-            isLoadingSourceDetails = false
-            isLoadingOutputFormats = false
-            isConverting = false
-            conversionProgress = nil
-            hasStartedConversion = false
             estimatedOutputBytes = Int64(20.6 * 1_024 * 1_024)
         case .convert:
+            hasPremiumAccess = true
+            quotaStatusMessage = L10n.tr("Premium active: unlimited conversions.")
             workflowStep = .conversion
             sourceMetadata = metadata
             sourcePreviewImage = makeShowcasePreviewImage()
@@ -1840,14 +1875,35 @@ final class VideoCompressionViewModel: ObservableObject {
             supportedOutputFormats = [.mov, .mp4, .m4v, .gpp3, .gpp23]
             targetUnit = .mb
             targetValueText = "21"
-            isLoadingSourceDetails = false
-            isLoadingOutputFormats = false
             hasStartedConversion = true
             isConverting = true
-            isCancellingConversion = false
             conversionProgress = 0.47
             estimatedOutputBytes = Int64(20.6 * 1_024 * 1_024)
             statusMessage = L10n.tr("Starting first conversion pass...")
+        case .done:
+            hasPremiumAccess = true
+            quotaStatusMessage = L10n.tr("Premium active: unlimited conversions.")
+            workflowStep = .conversion
+            sourceMetadata = metadata
+            sourcePreviewImage = makeShowcasePreviewImage()
+            sourceQuickInfoText = L10n.fmt("Detected: %@ • %@", "MOV", humanReadableSize(metadata.fileSizeBytes))
+            supportedOutputFormats = [.mov, .mp4, .m4v, .gpp3, .gpp23]
+            targetUnit = .mb
+            targetValueText = "21"
+            estimatedOutputBytes = Int64(20.6 * 1_024 * 1_024)
+            hasStartedConversion = true
+            convertedVideoURL = convertedURL
+            convertedFileSizeBytes = Int64(20.2 * 1_024 * 1_024)
+            conversionProgress = 1
+            statusMessage = L10n.fmt(
+                "Done. Output size: %@ (source: %@).",
+                humanReadableSize(convertedFileSizeBytes ?? 0),
+                humanReadableSize(metadata.fileSizeBytes)
+            )
+        case .paywall:
+            workflowStep = .source
+            statusMessage = L10n.tr("Pick a video from your gallery or Files to start.")
+            isPaywallPresented = true
         }
 
         validateTarget()

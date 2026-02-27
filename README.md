@@ -6,11 +6,42 @@ If you have ever seen messages like *"file too large"* when sending a video, thi
 
 ## Showcase
 
-<p>
-  <img src="showcase/step-1-source.png" alt="Step 1 Source Screen" width="220" />
-  <img src="showcase/step-2-settings.png" alt="Step 2 Settings Screen" width="220" />
-  <img src="showcase/step-3-convert.png" alt="Step 3 Convert Screen" width="220" />
-</p>
+Click any preview to open the high-quality screenshot.
+
+<table>
+  <tr>
+    <td align="center">
+      <a href="showcase/high/main-page.png">
+        <img src="showcase/preview/main-page.png" alt="Main page" width="200" />
+      </a>
+      <br />
+      <sub>Main Page</sub>
+    </td>
+    <td align="center">
+      <a href="showcase/high/ready-to-convert.png">
+        <img src="showcase/preview/ready-to-convert.png" alt="Video selected and ready to convert" width="200" />
+      </a>
+      <br />
+      <sub>Ready To Convert</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <a href="showcase/high/done-window.png">
+        <img src="showcase/preview/done-window.png" alt="Done window" width="200" />
+      </a>
+      <br />
+      <sub>Done Window</sub>
+    </td>
+    <td align="center">
+      <a href="showcase/high/paywall-window.png">
+        <img src="showcase/preview/paywall-window.png" alt="Paywall window" width="200" />
+      </a>
+      <br />
+      <sub>Paywall Window</sub>
+    </td>
+  </tr>
+</table>
 
 ## Why this app exists
 
