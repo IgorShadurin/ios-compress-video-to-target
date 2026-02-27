@@ -3,3 +3,10 @@ DerivedData/
 Pods/
 data/
 .idea/
+.build/
+.swiftpm/
+build/
+xcuserdata/
+*.xcuserstate
+*.xccheckout
+*.xcscmblueprint
