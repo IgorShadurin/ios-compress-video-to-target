@@ -4,6 +4,12 @@ import UIKit
 import UniformTypeIdentifiers
 
 struct ContentView: View {
+    private enum SettingsShowcaseVariant: String {
+        case advancedBottom = "advanced-bottom"
+        case formatDropdown = "format-dropdown"
+        case resolutionDropdown = "resolution-dropdown"
+    }
+
     private static let showcaseStepArgument: String? = {
         let args = ProcessInfo.processInfo.arguments
         guard let keyIndex = args.firstIndex(of: "-uiShowcaseStep") else {
@@ -15,9 +21,23 @@ struct ContentView: View {
         }
         return args[valueIndex].lowercased()
     }()
+    private static let showcaseVariantArgument: SettingsShowcaseVariant? = {
+        let args = ProcessInfo.processInfo.arguments
+        guard let keyIndex = args.firstIndex(of: "-uiShowcaseVariant") else {
+            return nil
+        }
+        let valueIndex = args.index(after: keyIndex)
+        guard valueIndex < args.endIndex else {
+            return nil
+        }
+        return SettingsShowcaseVariant(rawValue: args[valueIndex].lowercased())
+    }()
+    private static let settingsBottomAnchorID = "settings-bottom-anchor"
 
     @StateObject private var viewModel = VideoCompressionViewModel()
     @State private var isAdvancedSettingsExpanded = false
+    @State private var didConfigureShowcaseSettingsVariant = false
+    @State private var shouldScrollToSettingsBottom = false
     @State private var isFileImporterPresented = false
     @State private var isSaveDestinationDialogPresented = false
     @State private var isFilesExportPickerPresented = false
@@ -352,58 +372,70 @@ struct ContentView: View {
     }
 
     private var settingsStep: some View {
-        ScrollView {
-            VStack(spacing: 12) {
-                sourceCompactCard
-                if !viewModel.hasPremiumAccess && viewModel.canUseFreeConversionToday {
-                    quotaStatusCard
-                }
-
-                if !viewModel.hasPremiumAccess && viewModel.canUseFreeConversionToday {
-                    Button {
-                        viewModel.presentPaywall()
-                    } label: {
-                        upgradeButtonLabel(style: .secondary)
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(spacing: 12) {
+                    sourceCompactCard
+                    if !viewModel.hasPremiumAccess && viewModel.canUseFreeConversionToday {
+                        quotaStatusCard
                     }
-                    .buttonStyle(.plain)
-                }
 
-                if viewModel.isLoadingSourceDetails {
-                    loadingCard
-                }
-
-                if viewModel.sourceMetadata != nil {
-                    targetSettingsCard
-
-                    if isFreeQuotaExhausted {
-                        freeLimitReachedActionArea
-                    } else {
+                    if !viewModel.hasPremiumAccess && viewModel.canUseFreeConversionToday {
                         Button {
-                            Task {
-                                await viewModel.convert()
-                            }
+                            viewModel.presentPaywall()
                         } label: {
-                            Label(L10n.tr("Start Conversion"), systemImage: "play.fill")
-                                .font(.headline)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 14)
+                            upgradeButtonLabel(style: .secondary)
                         }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(!viewModel.canConvert)
+                        .buttonStyle(.plain)
                     }
 
-                    advancedOptionsSection
-                }
+                    if viewModel.isLoadingSourceDetails {
+                        loadingCard
+                    }
 
-                if let errorMessage = viewModel.errorMessage {
-                    Text(errorMessage)
-                        .font(.footnote)
-                        .foregroundStyle(Color(uiColor: .systemRed))
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
+                    if viewModel.sourceMetadata != nil {
+                        targetSettingsCard
 
+                        if isFreeQuotaExhausted {
+                            freeLimitReachedActionArea
+                        } else {
+                            Button {
+                                Task {
+                                    await viewModel.convert()
+                                }
+                            } label: {
+                                Label(L10n.tr("Start Conversion"), systemImage: "play.fill")
+                                    .font(.headline)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 14)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(!viewModel.canConvert)
+                        }
+
+                        advancedOptionsSection
+                    }
+
+                    if let errorMessage = viewModel.errorMessage {
+                        Text(errorMessage)
+                            .font(.footnote)
+                            .foregroundStyle(Color(uiColor: .systemRed))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    Color.clear
+                        .frame(height: 1)
+                        .id(Self.settingsBottomAnchorID)
+                }
+                .padding(.bottom, 16)
             }
-            .padding(.bottom, 16)
+            .onAppear {
+                applySettingsShowcaseVariantIfNeeded()
+                scrollToShowcaseSettingsBottomIfNeeded(proxy)
+            }
+            .onChange(of: isAdvancedSettingsExpanded) { _, _ in
+                scrollToShowcaseSettingsBottomIfNeeded(proxy)
+            }
         }
     }
 
@@ -1208,7 +1240,11 @@ struct ContentView: View {
 
             if isAdvancedSettingsExpanded {
                 VStack(alignment: .leading, spacing: 14) {
-                    settingsDropdownField(value: selectedFormatTitle) {
+                    settingsDropdownField(
+                        value: selectedFormatTitle,
+                        showcaseExpanded: showcaseSettingsVariant == .formatDropdown,
+                        showcaseOptions: viewModel.formatOptions.map(\.title)
+                    ) {
                         ForEach(viewModel.formatOptions, id: \.id) { option in
                             Button {
                                 viewModel.selectedOutputFormatID = option.id
@@ -1226,7 +1262,12 @@ struct ContentView: View {
                         .toggleStyle(SwitchToggleStyle(tint: .accentColor))
 
                     if viewModel.allowResizeUpTo10x {
-                        settingsDropdownField(title: L10n.tr("Output resolution"), value: selectedResolutionTitle) {
+                        settingsDropdownField(
+                            title: L10n.tr("Output resolution"),
+                            value: selectedResolutionTitle,
+                            showcaseExpanded: showcaseSettingsVariant == .resolutionDropdown,
+                            showcaseOptions: viewModel.resolutionOptions.map(\.title)
+                        ) {
                             ForEach(viewModel.resolutionOptions, id: \.id) { option in
                                 Button {
                                     viewModel.selectedResolutionScale = option.scale
@@ -1263,6 +1304,8 @@ struct ContentView: View {
     private func settingsDropdownField<MenuContent: View>(
         title: String? = nil,
         value: String,
+        showcaseExpanded: Bool = false,
+        showcaseOptions: [String] = [],
         @ViewBuilder menuContent: () -> MenuContent
     ) -> some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -1299,7 +1342,46 @@ struct ContentView: View {
                 )
             }
             .buttonStyle(.plain)
+
+            if showcaseExpanded {
+                showcaseDropdownPreview(options: showcaseOptions, selectedValue: value)
+            }
         }
+    }
+
+    private func showcaseDropdownPreview(options: [String], selectedValue: String) -> some View {
+        VStack(spacing: 0) {
+            ForEach(Array(options.prefix(6)).indices, id: \.self) { index in
+                let option = options[index]
+                HStack(spacing: 8) {
+                    Text(option)
+                        .font(.subheadline)
+                        .foregroundStyle(Color(uiColor: .label))
+                        .lineLimit(1)
+                    Spacer(minLength: 0)
+                    if option == selectedValue {
+                        Image(systemName: "checkmark")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Color.accentColor)
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 9)
+
+                if index < min(options.count, 6) - 1 {
+                    Divider()
+                        .overlay(Color(uiColor: .separator).opacity(colorScheme == .dark ? 0.45 : 0.22))
+                }
+            }
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color(uiColor: .systemBackground))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color(uiColor: .separator).opacity(colorScheme == .dark ? 0.65 : 0.30), lineWidth: 1)
+        )
     }
 
     private func dropdownOptionLabel(title: String, isSelected: Bool) -> some View {
@@ -1599,6 +1681,33 @@ struct ContentView: View {
         guard !hasPresentedShowcaseDoneSheet else { return }
         hasPresentedShowcaseDoneSheet = true
         isSaveDestinationDialogPresented = true
+    }
+
+    private var showcaseSettingsVariant: SettingsShowcaseVariant? {
+        guard Self.showcaseStepArgument == "settings" else { return nil }
+        return Self.showcaseVariantArgument
+    }
+
+    private func applySettingsShowcaseVariantIfNeeded() {
+        guard !didConfigureShowcaseSettingsVariant else { return }
+        didConfigureShowcaseSettingsVariant = true
+        guard let showcaseSettingsVariant else { return }
+
+        isAdvancedSettingsExpanded = true
+        viewModel.allowResizeUpTo10x = true
+
+        if showcaseSettingsVariant == .advancedBottom {
+            shouldScrollToSettingsBottom = true
+        }
+    }
+
+    private func scrollToShowcaseSettingsBottomIfNeeded(_ proxy: ScrollViewProxy) {
+        guard shouldScrollToSettingsBottom else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
+            withAnimation(nil) {
+                proxy.scrollTo(Self.settingsBottomAnchorID, anchor: .bottom)
+            }
+        }
     }
 }
 

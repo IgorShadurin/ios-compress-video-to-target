@@ -24,8 +24,6 @@ Click any preview to open the high-quality screenshot.
       <br />
       <sub>Ready To Convert</sub>
     </td>
-  </tr>
-  <tr>
     <td align="center">
       <a href="showcase/high/done-window.png">
         <img src="showcase/preview/done-window.png" alt="Done window" width="200" />
@@ -33,6 +31,8 @@ Click any preview to open the high-quality screenshot.
       <br />
       <sub>Done Window</sub>
     </td>
+  </tr>
+  <tr>
     <td align="center">
       <a href="showcase/high/paywall-window.png">
         <img src="showcase/preview/paywall-window.png" alt="Paywall window" width="200" />
@@ -40,6 +40,31 @@ Click any preview to open the high-quality screenshot.
       <br />
       <sub>Paywall Window</sub>
     </td>
+    <td align="center">
+      <a href="showcase/high/advanced-options-bottom.png">
+        <img src="showcase/preview/advanced-options-bottom.png" alt="Advanced options expanded and scrolled to bottom" width="200" />
+      </a>
+      <br />
+      <sub>Advanced Options (Bottom)</sub>
+    </td>
+    <td align="center">
+      <a href="showcase/high/format-dropdown-open.png">
+        <img src="showcase/preview/format-dropdown-open.png" alt="Output format dropdown opened" width="200" />
+      </a>
+      <br />
+      <sub>Format Dropdown Opened</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <a href="showcase/high/resolution-dropdown-open.png">
+        <img src="showcase/preview/resolution-dropdown-open.png" alt="Output resolution dropdown opened" width="200" />
+      </a>
+      <br />
+      <sub>Resolution Dropdown Opened</sub>
+    </td>
+    <td></td>
+    <td></td>
   </tr>
 </table>
 
