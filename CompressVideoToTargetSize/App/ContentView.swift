@@ -984,42 +984,28 @@ struct ContentView: View {
                                 await viewModel.purchasePlan(planID: selectedPaywallPlanID)
                             }
                         } label: {
-                            HStack(spacing: 12) {
-                                if viewModel.isPurchasingPlan {
-                                    ProgressView()
-                                        .tint(.white)
-                                        .frame(width: 20, height: 20)
-                                } else {
-                                    Image(systemName: "sparkles")
-                                        .font(.headline)
-                                        .foregroundStyle(.white)
-                                }
-
-                                Text(viewModel.isPurchasingPlan ? L10n.tr("Processing...") : continueButtonTitle)
-                                    .font(.headline.weight(.semibold))
-                                    .foregroundStyle(.white)
-
-                                Spacer(minLength: 0)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 16)
-                            .padding(.horizontal, 18)
-                            .background(
-                                LinearGradient(
-                                    colors: [
-                                        Color(red: 0xFE / 255, green: 0x68 / 255, blue: 0x71 / 255),
-                                        Color(red: 0xFF / 255, green: 0xA3 / 255, blue: 0x6B / 255)
-                                    ],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
+                            Text(viewModel.isPurchasingPlan ? L10n.tr("Processing...") : L10n.tr("Continue"))
+                                .font(.headline.weight(.semibold))
+                                .foregroundStyle(.white)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 16)
+                                .padding(.horizontal, 18)
+                                .background(
+                                    LinearGradient(
+                                        colors: [
+                                            Color(red: 0xFE / 255, green: 0x68 / 255, blue: 0x71 / 255),
+                                            Color(red: 0xFF / 255, green: 0xA3 / 255, blue: 0x6B / 255)
+                                        ],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
                                 )
-                            )
-                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                    .stroke(paywallCTAStrokeColor, lineWidth: 1)
-                            )
-                            .shadow(color: paywallCTAShadowColor, radius: 14, x: 0, y: 10)
+                                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                        .stroke(paywallCTAStrokeColor, lineWidth: 1)
+                                )
+                                .shadow(color: paywallCTAShadowColor, radius: 14, x: 0, y: 10)
                         }
                         .buttonStyle(.plain)
                         .disabled(
@@ -1031,26 +1017,10 @@ struct ContentView: View {
                                 await viewModel.restorePurchases()
                             }
                         } label: {
-                            HStack(spacing: 10) {
-                                Image(systemName: "arrow.clockwise.circle")
-                                    .font(.headline)
-                                    .foregroundStyle(paywallPrimaryTextColor)
-                                Text(L10n.tr("Restore Purchases"))
-                                    .font(.subheadline.weight(.semibold))
-                                    .foregroundStyle(paywallPrimaryTextColor)
-                                Spacer(minLength: 0)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                            .padding(.horizontal, 16)
-                            .background(
-                                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                    .fill(paywallRestoreFillColor)
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                    .stroke(paywallRestoreStrokeColor, lineWidth: 1)
-                            )
+                            Text(L10n.tr("Restore Purchases"))
+                                .font(.subheadline.weight(.semibold))
+                                .underline()
+                                .foregroundStyle(paywallPrimaryTextColor)
                         }
                         .buttonStyle(.plain)
                         .disabled(viewModel.isPurchasingPlan)
@@ -1137,16 +1107,6 @@ struct ContentView: View {
         return viewModel.purchaseOptions.first?.id
     }
 
-    private var continueButtonTitle: String {
-        guard let selected = selectedPaywallOption else {
-            return L10n.tr("Continue")
-        }
-        if !selected.isAvailable {
-            return "\(L10n.tr("Continue")) • \(selected.priceText) • \(L10n.tr("Unavailable"))"
-        }
-        return L10n.fmt("Continue • %@", selected.priceText)
-    }
-
     private var selectedFormatTitle: String {
         viewModel.formatOptions.first(where: { $0.id == viewModel.selectedOutputFormatID })?.title
             ?? L10n.tr("Auto")
@@ -1155,11 +1115,6 @@ struct ContentView: View {
     private var selectedResolutionTitle: String {
         viewModel.resolutionOptions.first(where: { abs($0.scale - viewModel.selectedResolutionScale) < 0.0001 })?.title
             ?? L10n.tr("Same as source")
-    }
-
-    private var selectedPaywallOption: PurchasePlanOption? {
-        guard let selectedPaywallPlanID else { return nil }
-        return viewModel.purchaseOptions.first(where: { $0.id == selectedPaywallPlanID })
     }
 
     private var termsOfUseURL: URL? {

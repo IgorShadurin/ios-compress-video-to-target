@@ -135,6 +135,87 @@ struct CompressionPlannerTests {
     }
 
     @Test
+    func adaptiveRetryPlanUsesObservedOversizeToAvoidOverAggressiveDrop() throws {
+        let source = makeSource(
+            duration: 97.645011,
+            bytes: 31_086_981,
+            width: 1080,
+            height: 1920,
+            codec: .h264,
+            hdr: false,
+            container: .mp4,
+            sourceBitrate: 2_340_622,
+            audioBitrate: 197_789
+        )
+        let settings = CompressionSettings(
+            targetValue: 15,
+            targetUnit: .mb,
+            allowResizeUpTo10x: false,
+            removeHDR: false,
+            outputFormatIdentifier: .none
+        )
+
+        let first = try planner.makePlan(source: source, settings: settings, supportedOutputFormats: [.mp4, .mov, .m4v])
+        let regularRetry = try planner.makeRetryPlan(
+            source: source,
+            priorPlan: first,
+            settings: settings,
+            supportedOutputFormats: [.mp4, .mov, .m4v]
+        )
+        let observedOversize = Int64(Double(first.targetBytes) * 1.22)
+        let adaptiveRetry = try planner.makeAdaptiveRetryPlan(
+            source: source,
+            priorPlan: first,
+            observedOutputBytes: observedOversize,
+            settings: settings,
+            supportedOutputFormats: [.mp4, .mov, .m4v]
+        )
+
+        #expect(adaptiveRetry.estimatedOutputBytes <= adaptiveRetry.targetBytes)
+        #expect(adaptiveRetry.targetVideoBitrate <= regularRetry.targetVideoBitrate)
+        #expect(adaptiveRetry.estimatedOutputBytes >= Int64(Double(adaptiveRetry.targetBytes) * 0.70))
+    }
+
+    @Test
+    func adaptiveRetryPlanReturnsRegularRetryWhenObservedResultAlreadyWithinTarget() throws {
+        let source = makeSource(
+            duration: 60,
+            bytes: 120 * 1_024 * 1_024,
+            width: 1920,
+            height: 1080,
+            codec: .h264,
+            hdr: false,
+            container: .mov,
+            sourceBitrate: 8_000_000,
+            audioBitrate: 128_000
+        )
+        let settings = CompressionSettings(
+            targetValue: 20,
+            targetUnit: .mb,
+            allowResizeUpTo10x: true,
+            removeHDR: false,
+            outputFormatIdentifier: nil
+        )
+
+        let first = try planner.makePlan(source: source, settings: settings, supportedOutputFormats: [.mov, .mp4, .m4v])
+        let regularRetry = try planner.makeRetryPlan(
+            source: source,
+            priorPlan: first,
+            settings: settings,
+            supportedOutputFormats: [.mov, .mp4, .m4v]
+        )
+        let adaptiveRetry = try planner.makeAdaptiveRetryPlan(
+            source: source,
+            priorPlan: first,
+            observedOutputBytes: Int64(Double(first.targetBytes) * 0.95),
+            settings: settings,
+            supportedOutputFormats: [.mov, .mp4, .m4v]
+        )
+
+        #expect(adaptiveRetry == regularRetry)
+    }
+
+    @Test
     func removeHDRForcesH264() throws {
         let source = makeSource(codec: .hevc, hdr: true)
         let settings = CompressionSettings(
@@ -378,6 +459,64 @@ struct CompressionPlannerTests {
         #expect(plan.estimatedOutputBytes <= Int64(Double(plan.targetBytes) * 0.90))
         #expect(plan.resizeScale < 1.0)
         #expect(plan.targetVideoBitrate < source.sourceVideoBitrate)
+    }
+
+    @Test
+    func fd34IssueProfileKeepsSourceResolutionOnFirstPassWhenManualResizeIsOff() async throws {
+        let testFileURL = URL(
+            fileURLWithPath: "/Users/test/XCodeProjects/CompressTarget_data/fd34f70f-95d4-46a7-9bac-5715fd21734e.mp4"
+        )
+        #expect(FileManager.default.fileExists(atPath: testFileURL.path))
+
+        let source = try await makeSourceProfile(from: testFileURL)
+        let settings = CompressionSettings(
+            targetValue: 15,
+            targetUnit: .mb,
+            allowResizeUpTo10x: false,
+            removeHDR: false,
+            outputFormatIdentifier: nil
+        )
+
+        let plan = try planner.makePlan(
+            source: source,
+            settings: settings,
+            supportedOutputFormats: [.mp4, .mov, .m4v]
+        )
+
+        #expect(plan.resizeScale > 0.99)
+        #expect(plan.estimatedOutputBytes <= plan.targetBytes)
+        #expect(plan.estimatedOutputBytes >= Int64(Double(plan.targetBytes) * 0.90))
+    }
+
+    @Test
+    func emergencySafetyResizeStillAppliesWithoutManualResizeForExtremeTargets() throws {
+        let source = makeSource(
+            duration: 60,
+            bytes: 120 * 1_024 * 1_024,
+            width: 3840,
+            height: 2160,
+            codec: .h264,
+            hdr: false,
+            container: .mov,
+            sourceBitrate: 25_000_000,
+            audioBitrate: 128_000
+        )
+        let settings = CompressionSettings(
+            targetValue: 5,
+            targetUnit: .mb,
+            allowResizeUpTo10x: false,
+            removeHDR: false,
+            outputFormatIdentifier: nil
+        )
+
+        let plan = try planner.makePlan(
+            source: source,
+            settings: settings,
+            supportedOutputFormats: [.mov, .mp4, .m4v]
+        )
+
+        #expect(plan.resizeScale < 0.65)
+        #expect(plan.estimatedOutputBytes <= plan.targetBytes)
     }
 
     @Test

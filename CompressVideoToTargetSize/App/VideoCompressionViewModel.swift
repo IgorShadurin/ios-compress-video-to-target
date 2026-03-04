@@ -1167,7 +1167,7 @@ final class VideoCompressionViewModel: ObservableObject {
         )
         let targetBytes = currentPlan.targetBytes
         var bestOversizedBytes: Int64 = .max
-        let primaryAttempts = 5
+        let primaryAttempts = 8
         let primaryPhaseWeight = 0.72
         let primaryAttemptWeight = primaryPhaseWeight / Double(primaryAttempts)
 
@@ -1214,6 +1214,7 @@ final class VideoCompressionViewModel: ObservableObject {
                 )
                 currentPlan = makeStricterPlan(
                     priorPlan: currentPlan,
+                    observedOutputBytes: outputSize,
                     sourceMetadata: sourceMetadata,
                     settings: settings,
                     supportedOutputFormats: supportedFormats
@@ -1238,11 +1239,18 @@ final class VideoCompressionViewModel: ObservableObject {
 
     private func makeStricterPlan(
         priorPlan: CompressionPlan,
+        observedOutputBytes: Int64,
         sourceMetadata: VideoMetadata,
         settings: CompressionSettings,
         supportedOutputFormats: [CompressionContainer]
     ) -> CompressionPlan {
-        var retryPlan = (try? planner.makeRetryPlan(
+        var retryPlan = (try? planner.makeAdaptiveRetryPlan(
+            source: sourceMetadata.sourceProfile,
+            priorPlan: priorPlan,
+            observedOutputBytes: observedOutputBytes,
+            settings: settings,
+            supportedOutputFormats: supportedOutputFormats
+        )) ?? (try? planner.makeRetryPlan(
             source: sourceMetadata.sourceProfile,
             priorPlan: priorPlan,
             settings: settings,

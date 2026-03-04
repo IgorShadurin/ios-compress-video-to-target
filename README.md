@@ -12,58 +12,110 @@ Click any preview to open the high-quality screenshot.
   <tr>
     <td align="center">
       <a href="showcase/high/main-page.png">
-        <img src="showcase/preview/main-page.png" alt="Main page" width="200" />
+        <img src="showcase/preview/main-page.png" alt="Main page (light)" width="200" />
       </a>
       <br />
-      <sub>Main Page</sub>
+      <sub>Main Page (Light)</sub>
     </td>
     <td align="center">
       <a href="showcase/high/ready-to-convert.png">
-        <img src="showcase/preview/ready-to-convert.png" alt="Video selected and ready to convert" width="200" />
+        <img src="showcase/preview/ready-to-convert.png" alt="Ready to convert (light)" width="200" />
       </a>
       <br />
-      <sub>Ready To Convert</sub>
+      <sub>Ready To Convert (Light)</sub>
     </td>
     <td align="center">
       <a href="showcase/high/done-window.png">
-        <img src="showcase/preview/done-window.png" alt="Done window" width="200" />
+        <img src="showcase/preview/done-window.png" alt="Done window (light)" width="200" />
       </a>
       <br />
-      <sub>Done Window</sub>
+      <sub>Done Window (Light)</sub>
     </td>
   </tr>
   <tr>
     <td align="center">
       <a href="showcase/high/paywall-window.png">
-        <img src="showcase/preview/paywall-window.png" alt="Paywall window" width="200" />
+        <img src="showcase/preview/paywall-window.png" alt="Paywall window (light)" width="200" />
       </a>
       <br />
-      <sub>Paywall Window</sub>
+      <sub>Paywall Window (Light)</sub>
     </td>
     <td align="center">
       <a href="showcase/high/advanced-options-bottom.png">
-        <img src="showcase/preview/advanced-options-bottom.png" alt="Advanced options expanded and scrolled to bottom" width="200" />
+        <img src="showcase/preview/advanced-options-bottom.png" alt="Advanced options bottom (light)" width="200" />
       </a>
       <br />
-      <sub>Advanced Options (Bottom)</sub>
+      <sub>Advanced Options (Bottom, Light)</sub>
     </td>
     <td align="center">
       <a href="showcase/high/format-dropdown-open.png">
-        <img src="showcase/preview/format-dropdown-open.png" alt="Output format dropdown opened" width="200" />
+        <img src="showcase/preview/format-dropdown-open.png" alt="Format dropdown opened (light)" width="200" />
       </a>
       <br />
-      <sub>Format Dropdown Opened</sub>
+      <sub>Format Dropdown Opened (Light)</sub>
     </td>
   </tr>
   <tr>
     <td align="center">
       <a href="showcase/high/resolution-dropdown-open.png">
-        <img src="showcase/preview/resolution-dropdown-open.png" alt="Output resolution dropdown opened" width="200" />
+        <img src="showcase/preview/resolution-dropdown-open.png" alt="Resolution dropdown opened (light)" width="200" />
       </a>
       <br />
-      <sub>Resolution Dropdown Opened</sub>
+      <sub>Resolution Dropdown Opened (Light)</sub>
     </td>
-    <td></td>
+    <td align="center">
+      <a href="showcase/high/main-page-dark.png">
+        <img src="showcase/preview/main-page-dark.png" alt="Main page (dark)" width="200" />
+      </a>
+      <br />
+      <sub>Main Page (Dark)</sub>
+    </td>
+    <td align="center">
+      <a href="showcase/high/ready-to-convert-dark.png">
+        <img src="showcase/preview/ready-to-convert-dark.png" alt="Ready to convert (dark)" width="200" />
+      </a>
+      <br />
+      <sub>Ready To Convert (Dark)</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <a href="showcase/high/done-window-dark.png">
+        <img src="showcase/preview/done-window-dark.png" alt="Done window (dark)" width="200" />
+      </a>
+      <br />
+      <sub>Done Window (Dark)</sub>
+    </td>
+    <td align="center">
+      <a href="showcase/high/paywall-window-dark.png">
+        <img src="showcase/preview/paywall-window-dark.png" alt="Paywall window (dark)" width="200" />
+      </a>
+      <br />
+      <sub>Paywall Window (Dark)</sub>
+    </td>
+    <td align="center">
+      <a href="showcase/high/advanced-options-bottom-dark.png">
+        <img src="showcase/preview/advanced-options-bottom-dark.png" alt="Advanced options bottom (dark)" width="200" />
+      </a>
+      <br />
+      <sub>Advanced Options (Bottom, Dark)</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <a href="showcase/high/format-dropdown-open-dark.png">
+        <img src="showcase/preview/format-dropdown-open-dark.png" alt="Format dropdown opened (dark)" width="200" />
+      </a>
+      <br />
+      <sub>Format Dropdown Opened (Dark)</sub>
+    </td>
+    <td align="center">
+      <a href="showcase/high/resolution-dropdown-open-dark.png">
+        <img src="showcase/preview/resolution-dropdown-open-dark.png" alt="Resolution dropdown opened (dark)" width="200" />
+      </a>
+      <br />
+      <sub>Resolution Dropdown Opened (Dark)</sub>
+    </td>
     <td></td>
   </tr>
 </table>

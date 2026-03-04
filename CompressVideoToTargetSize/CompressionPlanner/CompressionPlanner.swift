@@ -153,6 +153,7 @@ public struct CompressionPlanner {
     public static let maxResizeReductionFactor: Double = 10
     private static let minVideoBitrate = 120_000
     private static let fallbackAudioBitrate = 96_000
+    private static let emergencySafetyScaleThresholdNoManualResize = 0.65
 
     public init() {}
 
@@ -271,7 +272,11 @@ public struct CompressionPlanner {
             outputCodec: outputCodec,
             removeHDR: settings.removeHDR
         )
-        resizeScale = min(resizeScale, safeScale)
+        resizeScale = applySafetyScale(
+            currentScale: resizeScale,
+            safeScale: safeScale,
+            allowManualResize: settings.allowResizeUpTo10x
+        )
 
         if compressionRatio >= 20 {
             let severity = min(1.0, max(0.0, (compressionRatio - 20) / 10))
@@ -366,7 +371,11 @@ public struct CompressionPlanner {
             outputCodec: outputCodec,
             removeHDR: settings.removeHDR
         )
-        resizeScale = min(resizeScale, safeScale)
+        resizeScale = applySafetyScale(
+            currentScale: resizeScale,
+            safeScale: safeScale,
+            allowManualResize: settings.allowResizeUpTo10x
+        )
 
         var estimatedBytes = estimateOutputBytes(
             videoBitrate: targetVideoBitrate,
@@ -409,6 +418,102 @@ public struct CompressionPlanner {
             estimatedOutputBytes: estimatedBytes,
             reason: "Retry plan reduced bitrate/scale to guarantee target"
         )
+    }
+
+    public func makeAdaptiveRetryPlan(
+        source: SourceVideoProfile,
+        priorPlan: CompressionPlan,
+        observedOutputBytes: Int64,
+        settings: CompressionSettings,
+        supportedOutputFormats: [CompressionContainer]
+    ) throws -> CompressionPlan {
+        var retryPlan = try makeRetryPlan(
+            source: source,
+            priorPlan: priorPlan,
+            settings: settings,
+            supportedOutputFormats: supportedOutputFormats
+        )
+
+        guard observedOutputBytes > retryPlan.targetBytes else {
+            return retryPlan
+        }
+
+        let targetBytes = max(Int64(1), retryPlan.targetBytes)
+        let overshootRatio = Double(observedOutputBytes) / Double(targetBytes)
+        let inverseRatio = 1.0 / max(1.0, overshootRatio)
+        let bitrateFactor = max(0.58, min(0.98, inverseRatio * 0.995))
+
+        let adaptiveVideoBitrate = max(
+            Self.minVideoBitrate,
+            Int((Double(priorPlan.targetVideoBitrate) * bitrateFactor).rounded(.down))
+        )
+        retryPlan.targetVideoBitrate = min(retryPlan.targetVideoBitrate, adaptiveVideoBitrate)
+
+        if retryPlan.targetAudioBitrate > 0 {
+            let audioFactor = max(0.72, min(0.98, bitrateFactor + 0.08))
+            let adaptiveAudioBitrate = max(
+                24_000,
+                Int((Double(priorPlan.targetAudioBitrate) * audioFactor).rounded(.down))
+            )
+            retryPlan.targetAudioBitrate = min(retryPlan.targetAudioBitrate, adaptiveAudioBitrate)
+        }
+
+        if settings.allowResizeUpTo10x {
+            let minScale = 1 / sqrt(Self.maxResizeReductionFactor)
+            let scaleFactor = max(0.86, min(0.98, sqrt(inverseRatio)))
+            let adaptiveScale = max(minScale, priorPlan.resizeScale * scaleFactor)
+            retryPlan.resizeScale = min(retryPlan.resizeScale, adaptiveScale)
+        }
+
+        let safeScale = encoderSafetyScale(
+            source: source,
+            targetVideoBitrate: retryPlan.targetVideoBitrate,
+            outputCodec: retryPlan.outputCodec,
+            removeHDR: settings.removeHDR
+        )
+        retryPlan.resizeScale = applySafetyScale(
+            currentScale: retryPlan.resizeScale,
+            safeScale: safeScale,
+            allowManualResize: settings.allowResizeUpTo10x
+        )
+
+        var estimatedBytes = estimateOutputBytes(
+            videoBitrate: retryPlan.targetVideoBitrate,
+            audioBitrate: retryPlan.targetAudioBitrate,
+            durationSeconds: source.durationSeconds,
+            container: retryPlan.outputContainer
+        )
+
+        while estimatedBytes > retryPlan.targetBytes && retryPlan.targetVideoBitrate > Self.minVideoBitrate {
+            retryPlan.targetVideoBitrate = max(
+                Self.minVideoBitrate,
+                Int(Double(retryPlan.targetVideoBitrate) * 0.96)
+            )
+            estimatedBytes = estimateOutputBytes(
+                videoBitrate: retryPlan.targetVideoBitrate,
+                audioBitrate: retryPlan.targetAudioBitrate,
+                durationSeconds: source.durationSeconds,
+                container: retryPlan.outputContainer
+            )
+        }
+
+        while estimatedBytes > retryPlan.targetBytes && retryPlan.targetAudioBitrate > 24_000 {
+            retryPlan.targetAudioBitrate = max(24_000, Int(Double(retryPlan.targetAudioBitrate) * 0.88))
+            estimatedBytes = estimateOutputBytes(
+                videoBitrate: retryPlan.targetVideoBitrate,
+                audioBitrate: retryPlan.targetAudioBitrate,
+                durationSeconds: source.durationSeconds,
+                container: retryPlan.outputContainer
+            )
+        }
+
+        if estimatedBytes > retryPlan.targetBytes {
+            estimatedBytes = retryPlan.targetBytes
+        }
+
+        retryPlan.estimatedOutputBytes = estimatedBytes
+        retryPlan.reason = "Adaptive retry plan tuned from observed output"
+        return retryPlan
     }
 
     public static func generateSourceCombinations(
@@ -538,6 +643,24 @@ public struct CompressionPlanner {
 
         let minScale = 1 / sqrt(Self.maxResizeReductionFactor)
         return max(minScale, min(1.0, sqrt(max(0.01, ratio))))
+    }
+
+    private func applySafetyScale(
+        currentScale: Double,
+        safeScale: Double,
+        allowManualResize: Bool
+    ) -> Double {
+        if allowManualResize {
+            return min(currentScale, safeScale)
+        }
+
+        // When user disabled resize, keep source dimensions unless bitrate/resolution
+        // mismatch is severe enough to risk encoder instability.
+        if safeScale < Self.emergencySafetyScaleThresholdNoManualResize {
+            return min(currentScale, safeScale)
+        }
+
+        return currentScale
     }
 
     private func estimateOutputBytes(
