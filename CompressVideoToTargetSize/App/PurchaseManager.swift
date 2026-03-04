@@ -9,14 +9,52 @@ struct PurchasePlanOption: Identifiable, Hashable {
     let isAvailable: Bool
 }
 
+private struct ProductLookupResult {
+    let byID: [String: Product]
+    let missingProductIDs: [String]
+    let storeKitErrorSummary: String?
+}
+
 enum PurchaseManagerError: LocalizedError {
-    case productUnavailable
+    case productUnavailable(
+        productID: String,
+        missingProductIDs: [String],
+        storeKitErrorSummary: String?
+    )
+    case purchaseFailed(productID: String, storeKitErrorSummary: String)
+    case transactionUnverified(productID: String, verificationErrorSummary: String?)
     case pending
 
     var errorDescription: String? {
         switch self {
-        case .productUnavailable:
-            return L10n.tr("This purchase option is currently unavailable.")
+        case let .productUnavailable(productID, missingProductIDs, storeKitErrorSummary):
+            var details: [String] = [
+                L10n.tr("This purchase option is currently unavailable."),
+                "Product ID: \(productID)"
+            ]
+            if !missingProductIDs.isEmpty {
+                details.append("Missing from App Store response: \(missingProductIDs.joined(separator: ", "))")
+            }
+            if let storeKitErrorSummary, !storeKitErrorSummary.isEmpty {
+                details.append("StoreKit request failed: \(storeKitErrorSummary)")
+            }
+            details.append("Check App Store Connect status (Ready for Sale), storefront availability, and Paid Applications agreement.")
+            return details.joined(separator: "\n")
+        case let .purchaseFailed(productID, storeKitErrorSummary):
+            return """
+            Purchase failed.
+            Product ID: \(productID)
+            StoreKit purchase error: \(storeKitErrorSummary)
+            """
+        case let .transactionUnverified(productID, verificationErrorSummary):
+            var details: [String] = [
+                "Purchase succeeded but the transaction could not be verified.",
+                "Product ID: \(productID)"
+            ]
+            if let verificationErrorSummary, !verificationErrorSummary.isEmpty {
+                details.append("Verification error: \(verificationErrorSummary)")
+            }
+            return details.joined(separator: "\n")
         case .pending:
             return L10n.tr("Purchase is pending approval.")
         }
@@ -41,7 +79,21 @@ final class PurchaseManager {
     ]
 
     func loadPlanOptions() async -> [PurchasePlanOption] {
-        let byID = await loadProductsByID()
+        let lookupResult = await loadProductsByID(for: Self.productOrder)
+        let byID = lookupResult.byID
+
+        if !lookupResult.missingProductIDs.isEmpty {
+            await AppDiagnostics.shared.log(
+                level: "warning",
+                category: "purchase",
+                message: "storekit_products_missing",
+                context: .diagnostics(
+                    ("requestedProductIDs", Self.productOrder.joined(separator: ",")),
+                    ("missingProductIDs", lookupResult.missingProductIDs.joined(separator: ",")),
+                    ("storeKitError", lookupResult.storeKitErrorSummary)
+                )
+            )
+        }
 
         return Self.productOrder.map { id in
             if let product = byID[id] {
@@ -87,27 +139,43 @@ final class PurchaseManager {
     }
 
     func purchase(productID: String) async throws -> Bool {
-        let products = try await Product.products(for: [productID])
-        guard let product = products.first else {
-            throw PurchaseManagerError.productUnavailable
+        let lookupResult = await loadProductsByID(for: [productID])
+        guard let product = lookupResult.byID[productID] else {
+            throw PurchaseManagerError.productUnavailable(
+                productID: productID,
+                missingProductIDs: lookupResult.missingProductIDs,
+                storeKitErrorSummary: lookupResult.storeKitErrorSummary
+            )
         }
 
-        let result = try await product.purchase()
-        switch result {
-        case .success(let verification):
-            switch verification {
-            case .verified(let transaction):
-                await transaction.finish()
-                return true
-            case .unverified:
-                throw PurchaseManagerError.productUnavailable
+        do {
+            let result = try await product.purchase()
+            switch result {
+            case .success(let verification):
+                switch verification {
+                case .verified(let transaction):
+                    await transaction.finish()
+                    return true
+                case .unverified(_, let verificationError):
+                    throw PurchaseManagerError.transactionUnverified(
+                        productID: productID,
+                        verificationErrorSummary: verificationError.localizedDescription
+                    )
+                }
+            case .pending:
+                throw PurchaseManagerError.pending
+            case .userCancelled:
+                return false
+            @unknown default:
+                return false
             }
-        case .pending:
-            throw PurchaseManagerError.pending
-        case .userCancelled:
-            return false
-        @unknown default:
-            return false
+        } catch let error as PurchaseManagerError {
+            throw error
+        } catch {
+            throw PurchaseManagerError.purchaseFailed(
+                productID: productID,
+                storeKitErrorSummary: describeStoreKitError(error)
+            )
         }
     }
 
@@ -116,12 +184,23 @@ final class PurchaseManager {
         return await hasActiveEntitlement()
     }
 
-    private func loadProductsByID() async -> [String: Product] {
-        guard let products = try? await Product.products(for: Self.productOrder) else {
-            return [:]
+    private func loadProductsByID(for requestedIDs: [String]) async -> ProductLookupResult {
+        do {
+            let products = try await Product.products(for: requestedIDs)
+            let byID = Dictionary(uniqueKeysWithValues: products.map { ($0.id, $0) })
+            let missingProductIDs = requestedIDs.filter { byID[$0] == nil }
+            return ProductLookupResult(
+                byID: byID,
+                missingProductIDs: missingProductIDs,
+                storeKitErrorSummary: nil
+            )
+        } catch {
+            return ProductLookupResult(
+                byID: [:],
+                missingProductIDs: requestedIDs,
+                storeKitErrorSummary: describeStoreKitError(error)
+            )
         }
-
-        return Dictionary(uniqueKeysWithValues: products.map { ($0.id, $0) })
     }
 
     private func title(for productID: String) -> String {
@@ -152,5 +231,14 @@ final class PurchaseManager {
 
     private func fallbackPrice(for productID: String) -> String {
         Self.fallbackPriceByProductID[productID] ?? "$0.00"
+    }
+
+    private func describeStoreKitError(_ error: Error) -> String {
+        let nsError = error as NSError
+        let description = nsError.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+        if description.isEmpty {
+            return "\(nsError.domain) (\(nsError.code))"
+        }
+        return "\(nsError.domain) (\(nsError.code)): \(description)"
     }
 }

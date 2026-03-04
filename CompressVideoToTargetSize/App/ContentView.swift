@@ -1141,6 +1141,9 @@ struct ContentView: View {
         guard let selected = selectedPaywallOption else {
             return L10n.tr("Continue")
         }
+        if !selected.isAvailable {
+            return "\(L10n.tr("Continue")) • \(selected.priceText) • \(L10n.tr("Unavailable"))"
+        }
         return L10n.fmt("Continue • %@", selected.priceText)
     }
 
@@ -1428,6 +1431,15 @@ struct ContentView: View {
                                 showsStroke: true
                             )
                         }
+                        if !option.isAvailable {
+                            paywallBadgeChip(
+                                title: L10n.tr("Unavailable"),
+                                fill: Color(uiColor: .systemGray),
+                                stroke: Color.clear,
+                                textColor: .white,
+                                showsStroke: false
+                            )
+                        }
                     }
 
                     Text(option.subtitle)
@@ -1471,6 +1483,7 @@ struct ContentView: View {
                         lineWidth: isSelected ? 2 : 1
                     )
             )
+            .opacity(option.isAvailable ? 1.0 : 0.85)
         }
         .buttonStyle(.plain)
         .disabled(viewModel.isPurchasingPlan)
