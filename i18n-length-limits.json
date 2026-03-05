@@ -1,10 +1,10 @@
 {
   "notes": "Only keys listed in max_length_by_key are length-validated across all locales.",
   "max_length_by_key": {
-    "Unlock Unlimited Conversions": 28,
-    "Unlimited conversions, billed weekly": 36,
-    "Unlimited conversions, billed monthly": 37,
-    "Unlimited conversions forever": 29,
+    "Unlock Unlimited Usage": 28,
+    "Unlimited usage, billed weekly": 36,
+    "Unlimited usage, billed monthly": 37,
+    "Unlimited usage forever": 29,
     "Most popular": 12,
     "Best value": 10
   }

@@ -424,7 +424,7 @@ final class VideoCompressionViewModel: ObservableObject {
             if didPurchase {
                 hasPremiumAccess = await purchaseManager.hasActiveEntitlement()
                 if hasPremiumAccess {
-                    statusMessage = L10n.tr("Premium unlocked. Unlimited conversions enabled.")
+                    statusMessage = L10n.tr("Premium unlocked. Unlimited usage enabled.")
                     isPaywallPresented = false
                 }
             }
@@ -445,7 +445,7 @@ final class VideoCompressionViewModel: ObservableObject {
         do {
             let hasRestoredAccess = try await purchaseManager.restorePurchases()
             if hasRestoredAccess {
-                statusMessage = L10n.tr("Purchases restored. Unlimited conversions enabled.")
+                statusMessage = L10n.tr("Purchases restored. Unlimited usage enabled.")
                 isPaywallPresented = false
             } else {
                 statusMessage = L10n.tr("No active purchases found.")
@@ -689,7 +689,7 @@ final class VideoCompressionViewModel: ObservableObject {
 
         guard canStartConversionToday else {
             statusMessage = L10n.tr("Daily free limit reached.")
-            errorMessage = L10n.tr("Free plan allows only 1 conversion per day. Upgrade for unlimited conversions.")
+            errorMessage = L10n.tr("Free plan allows only 1 usage per day. Upgrade for unlimited usage.")
             isPaywallPresented = true
             return
         }
@@ -1713,8 +1713,8 @@ final class VideoCompressionViewModel: ObservableObject {
 
         let remaining = quotaStore.remainingFreeConversionsToday()
         quotaStatusMessage = remaining > 0
-            ? L10n.tr("One conversion left today.")
-            : L10n.tr("No conversions left today.")
+            ? L10n.tr("One usage left today.")
+            : L10n.tr("No usage left today.")
     }
 
     private func fileSize(for url: URL) throws -> Int64 {
@@ -1813,26 +1813,26 @@ final class VideoCompressionViewModel: ObservableObject {
         )
 
         hasPremiumAccess = false
-        quotaStatusMessage = L10n.tr("One conversion left today.")
+        quotaStatusMessage = L10n.tr("One usage left today.")
         purchaseOptions = [
             PurchasePlanOption(
                 id: PurchaseManager.weeklyProductID,
                 title: L10n.tr("Weekly"),
-                subtitle: L10n.tr("Unlimited conversions, billed weekly"),
+                subtitle: L10n.tr("Unlimited usage, billed weekly"),
                 priceText: "$0.99",
                 isAvailable: true
             ),
             PurchasePlanOption(
                 id: PurchaseManager.monthlyProductID,
                 title: L10n.tr("Monthly"),
-                subtitle: L10n.tr("Unlimited conversions, billed monthly"),
+                subtitle: L10n.tr("Unlimited usage, billed monthly"),
                 priceText: "$2.99",
                 isAvailable: true
             ),
             PurchasePlanOption(
                 id: PurchaseManager.lifetimeProductID,
                 title: L10n.tr("Forever"),
-                subtitle: L10n.tr("Unlimited conversions forever"),
+                subtitle: L10n.tr("Unlimited usage forever"),
                 priceText: "$29.99",
                 isAvailable: true
             )
@@ -1863,7 +1863,7 @@ final class VideoCompressionViewModel: ObservableObject {
             statusMessage = L10n.tr("Pick a video from your gallery or Files to start.")
         case .settings:
             hasPremiumAccess = true
-            quotaStatusMessage = L10n.tr("Premium active: unlimited conversions.")
+            quotaStatusMessage = L10n.tr("Premium active: unlimited usage.")
             workflowStep = .settings
             sourceMetadata = metadata
             sourcePreviewImage = makeShowcasePreviewImage()
@@ -1875,7 +1875,7 @@ final class VideoCompressionViewModel: ObservableObject {
             estimatedOutputBytes = Int64(20.6 * 1_024 * 1_024)
         case .convert:
             hasPremiumAccess = true
-            quotaStatusMessage = L10n.tr("Premium active: unlimited conversions.")
+            quotaStatusMessage = L10n.tr("Premium active: unlimited usage.")
             workflowStep = .conversion
             sourceMetadata = metadata
             sourcePreviewImage = makeShowcasePreviewImage()
@@ -1890,7 +1890,7 @@ final class VideoCompressionViewModel: ObservableObject {
             statusMessage = L10n.tr("Starting first conversion pass...")
         case .done:
             hasPremiumAccess = true
-            quotaStatusMessage = L10n.tr("Premium active: unlimited conversions.")
+            quotaStatusMessage = L10n.tr("Premium active: unlimited usage.")
             workflowStep = .conversion
             sourceMetadata = metadata
             sourcePreviewImage = makeShowcasePreviewImage()

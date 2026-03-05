@@ -449,7 +449,7 @@ struct ContentView: View {
                 Image(systemName: "lock.fill")
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(.secondary)
-                Text(L10n.tr("No conversions left today."))
+                Text(L10n.tr("No usage left today."))
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(.secondary)
             }
@@ -890,25 +890,29 @@ struct ContentView: View {
 
     @ViewBuilder
     private func upgradeButtonLabel(style: UpgradeCTAStyle) -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: "crown.fill")
-                .font(.headline)
-                .foregroundStyle(Color(uiColor: .systemYellow))
-                .frame(width: 28, height: 28)
-                .background(
-                    Circle()
-                        .fill(Color(uiColor: .systemBackground).opacity(colorScheme == .dark ? 0.24 : 0.5))
-                )
-
+        ZStack {
             Text(L10n.tr("Upgrade to Unlimited"))
                 .font(.headline.weight(.semibold))
                 .foregroundStyle(Color(uiColor: .label))
+                .frame(maxWidth: .infinity)
+                .multilineTextAlignment(.center)
 
-            Spacer(minLength: 0)
+            HStack(spacing: 10) {
+                Image(systemName: "crown.fill")
+                    .font(.headline)
+                    .foregroundStyle(Color(uiColor: .systemYellow))
+                    .frame(width: 28, height: 28)
+                    .background(
+                        Circle()
+                            .fill(Color(uiColor: .systemBackground).opacity(colorScheme == .dark ? 0.24 : 0.5))
+                    )
 
-            Image(systemName: "chevron.right")
-                .font(.footnote.weight(.bold))
-                .foregroundStyle(Color(uiColor: .label).opacity(0.66))
+                Spacer(minLength: 0)
+
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.bold))
+                    .foregroundStyle(Color(uiColor: .label).opacity(0.66))
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(.horizontal, 14)
@@ -956,10 +960,16 @@ struct ContentView: View {
                 ScrollView {
                     VStack(spacing: 22) {
                         VStack(spacing: 10) {
-                            Text(L10n.tr("Unlock Unlimited Conversions"))
-                                .font(.title2.weight(.bold))
-                                .multilineTextAlignment(.center)
-                                .foregroundStyle(paywallPrimaryTextColor)
+                            HStack(spacing: 8) {
+                                Image(systemName: "crown.fill")
+                                    .font(.title3.weight(.semibold))
+                                    .foregroundStyle(Color(uiColor: .systemYellow))
+                                Text(L10n.tr("Unlock Unlimited Usage"))
+                                    .font(.title2.weight(.bold))
+                                    .multilineTextAlignment(.center)
+                                    .foregroundStyle(paywallPrimaryTextColor)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .center)
                         }
                         .padding(.top, 8)
 
@@ -1039,10 +1049,10 @@ struct ContentView: View {
                                 .foregroundStyle(paywallTertiaryTextColor)
                             HStack(spacing: 14) {
                                 if let termsOfUseURL {
-                                    Link("Terms", destination: termsOfUseURL)
+                                    Link(L10n.tr("Terms"), destination: termsOfUseURL)
                                 }
                                 if let privacyPolicyURL {
-                                    Link("Privacy", destination: privacyPolicyURL)
+                                    Link(L10n.tr("Privacy"), destination: privacyPolicyURL)
                                 }
                             }
                             .font(.caption2.weight(.semibold))

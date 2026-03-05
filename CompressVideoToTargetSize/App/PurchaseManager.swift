@@ -219,13 +219,13 @@ final class PurchaseManager {
     private func subtitle(for productID: String) -> String {
         switch productID {
         case Self.weeklyProductID:
-            return L10n.tr("Unlimited conversions, billed weekly")
+            return L10n.tr("Unlimited usage, billed weekly")
         case Self.monthlyProductID:
-            return L10n.tr("Unlimited conversions, billed monthly")
+            return L10n.tr("Unlimited usage, billed monthly")
         case Self.lifetimeProductID:
-            return L10n.tr("Unlimited conversions forever")
+            return L10n.tr("Unlimited usage forever")
         default:
-            return L10n.tr("Unlimited conversions")
+            return L10n.tr("Unlimited usage")
         }
     }
 
